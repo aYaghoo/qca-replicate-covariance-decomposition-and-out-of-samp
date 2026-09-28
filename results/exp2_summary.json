@@ -1,0 +1,36 @@
+{
+  "config": {
+    "N": 20,
+    "K_max": 7,
+    "T": 250,
+    "rolling_window": 100,
+    "n_alphas": 3,
+    "seed": 42
+  },
+  "n_oos": 128,
+  "best_restricted": {
+    "model": "RandomWalk",
+    "std_ann_pct": 64.42690278108316
+  },
+  "best_long_only": {
+    "model": "RandomWalk",
+    "std_ann_pct": 64.42690126953796
+  },
+  "constraint_summary": {
+    "mean": {
+      "long_only": 67.67054110534875,
+      "restricted": 67.96196097322674,
+      "unconstrained": 67.96196838968608
+    },
+    "min": {
+      "long_only": 64.42690126953796,
+      "restricted": 64.42690278108316,
+      "unconstrained": 64.42690245847066
+    },
+    "max": {
+      "long_only": 68.49486414109047,
+      "restricted": 68.85351444975211,
+      "unconstrained": 68.85353012691488
+    }
+  }
+}
