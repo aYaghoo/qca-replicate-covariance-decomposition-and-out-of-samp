@@ -1,4 +1,5 @@
 import numpy as np
+from scipy.linalg import expm, logm
 
 
 def vech(M: np.ndarray) -> np.ndarray:
@@ -27,7 +28,6 @@ def nearest_psd(M: np.ndarray, epsilon: float = 1e-8) -> np.ndarray:
 
 def safe_logm(M: np.ndarray) -> np.ndarray:
     """Compute matrix logarithm with PSD projection for numerical stability."""
-    from scipy.linalg import logm
 
     M_psd = nearest_psd(M)
     return logm(M_psd)
@@ -35,7 +35,6 @@ def safe_logm(M: np.ndarray) -> np.ndarray:
 
 def safe_expm(M: np.ndarray) -> np.ndarray:
     """Compute matrix exponential."""
-    from scipy.linalg import expm
 
     return expm(M)
 

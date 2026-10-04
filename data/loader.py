@@ -14,6 +14,8 @@ import os
 
 import numpy as np
 import pandas as pd
+from massive import RESTClient
+from src.data_simulation import SimulatedMarketData
 
 logger = logging.getLogger(__name__)
 
@@ -43,12 +45,6 @@ def fetch_daily_returns(
     if not api_key:
         raise OSError("No Massive API key found. Set MASSIVE_TOKEN environment variable.")
 
-    try:
-        from massive import RESTClient  # type: ignore
-    except ImportError as exc:
-        raise ImportError(
-            "The 'massive' package is required. Install it with: pip install massive"
-        ) from exc
 
     client = RESTClient(api_key=api_key)
     close_prices: dict[str, pd.Series] = {}
@@ -126,7 +122,6 @@ def load_or_simulate(
     tuple: (Sigma_list, factor_returns, stock_returns, sector_indices, market_caps, bm_ratios, accounting)
     """
     if use_simulation:
-        from src.data_simulation import SimulatedMarketData
 
         sim = SimulatedMarketData(N=N, K=K, S=10, T=T, seed=seed)
         Sigma_list, factor_returns, stock_returns = sim.simulate_realized_covariances()

@@ -1,5 +1,6 @@
 import cvxpy as cp
 import numpy as np
+from scipy import stats as spstats
 
 from .utils import nearest_psd
 
@@ -146,7 +147,6 @@ def compute_portfolio_metrics(
       avg_diversification_ratio, avg_max_weight, avg_min_weight
       avg_gross_leverage, prop_negative, avg_turnover
     """
-    from scipy import stats as spstats
 
     T_oos = weights_history.shape[0]
     N = weights_history.shape[1]

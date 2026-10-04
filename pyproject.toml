@@ -20,6 +20,17 @@ quote-style = "double"
 docstring-code-format = true
 
 [tool.ruff.lint]
+
+ignore = [
+    "TRY003", # long messages in raise: noisy, low value
+    "D105",   # docstrings on magic methods
+    "D107",   # __init__ docstring (documented on the class, Google style)
+    "N803", "N806", # math notation (Sigma, W_t, Sf) mirrors the papers and data sources
+    # Conflict with `ruff format`; the formatter handles these.
+    "W191", "E111", "E114", "E117", "D206", "D300",
+]
+allowed-confusables = ["×", "–"]
+
 select = [
     # --- PEP 8 and correctness ---
     "E", "W",  # pycodestyle
@@ -60,13 +71,6 @@ select = [
     "EXE",     # shebang / executable mismatches
     # --- Tests ---
     "PT",
-]
-ignore = [
-    "TRY003", # long messages in raise: noisy, low value
-    "D105",   # docstrings on magic methods
-    "D107",   # __init__ docstring (documented on the class, Google style)
-    # Conflict with `ruff format`; the formatter handles these.
-    "W191", "E111", "E114", "E117", "D206", "D300",
 ]
 
 [tool.ruff.lint.per-file-ignores]
@@ -123,7 +127,7 @@ enable_error_code = [
 # dependencies. For libraries with no stubs, ignore missing imports narrowly,
 # never globally.
 [[tool.mypy.overrides]]
-module = ["sklearn.*", "statsmodels.*", "cvxpy.*"]
+module = ["sklearn.*", "statsmodels.*", "cvxpy.*", "massive.*"]
 ignore_missing_imports = true
 
 [[tool.mypy.overrides]]
