@@ -1,4 +1,9 @@
-"""Minimum-variance portfolio optimizers and portfolio performance metrics."""
+"""Minimum-variance portfolio optimizers and portfolio performance metrics.
+
+Units: every function here expects returns in decimals (0.01 = 1%) and
+covariance matrices of decimal returns. Metrics come back in the same units;
+turnover in particular uses ``1 + r`` and is wrong for percent returns.
+"""
 
 import logging
 from typing import Any
@@ -215,8 +220,8 @@ def compute_portfolio_metrics(
     Parameters
     ----------
     weights_history: (T_oos, N) portfolio weights at each rebalancing
-    returns: (T_oos, N) realized stock returns
-    Sigma_hat_list: list of T_oos (N, N) forecast covariance matrices
+    returns: (T_oos, N) realized stock returns, in decimals (0.01 = 1%)
+    Sigma_hat_list: list of T_oos (N, N) forecast covariance matrices of decimal returns
 
     Returns
     -------
@@ -346,8 +351,8 @@ def run_portfolio_experiment(
 
     Parameters
     ----------
-    Sigma_hat_list: list of T_oos (N, N) forecast covariance matrices
-    returns: (T_oos, N) realized stock returns
+    Sigma_hat_list: list of T_oos (N, N) forecast covariance matrices of decimal returns
+    returns: (T_oos, N) realized stock returns, in decimals (0.01 = 1%)
     constraint_type: 'unconstrained', 'restricted', or 'long_only'
     short_leverage_cap: for restricted
     max_weight: for restricted and long_only

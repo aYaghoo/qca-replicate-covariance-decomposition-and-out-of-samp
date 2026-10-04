@@ -8,6 +8,10 @@ minimum-variance portfolios under three constraint regimes:
 
 Evaluates ex-post risk and portfolio characteristics for each model.
 
+Units: the simulator and the forecasts are in percent (as in Exp 1). The
+portfolio code expects decimals, so `to_decimal_units` converts once, after
+forecasting: returns / 100, covariance matrices (observed and forecast) / 100**2.
+
 Usage: python -m exp.exp2_portfolio_evaluation
 """
 
@@ -64,6 +68,7 @@ PORTFOLIO_MODELS = [
 ]
 
 CONSTRAINT_TYPES = ["unconstrained", "restricted", "long_only"]
+PERCENT = 100.0  # simulated returns are in percent; divide by this to get decimals
 SHORT_LEVERAGE_CAP = 0.30
 MAX_WEIGHT = 0.20
 
@@ -114,6 +119,42 @@ def get_forecast_results(
         )
         results[tag] = res
     return results
+
+
+def to_decimal_units(
+    stock_returns: np.ndarray,
+    rw_forecasts: list[np.ndarray],
+    forecast_results: dict[str, dict[str, Any]],
+) -> tuple[np.ndarray, list[np.ndarray], dict[str, dict[str, Any]]]:
+    """Convert percent-unit inputs to the decimal units the portfolio code expects.
+
+    Parameters
+    ----------
+    stock_returns
+        Daily stock returns in percent, shape (T, N).
+    rw_forecasts
+        Random-walk forecasts (observed covariance matrices) of percent returns.
+    forecast_results
+        Pipeline results by model tag; ``Sigma_hat_list`` is in percent squared.
+
+    Returns
+    -------
+    tuple[np.ndarray, list[np.ndarray], dict[str, dict[str, Any]]]
+        Returns / 100, RW forecasts / 100**2, and per model the forecast
+        ``Sigma_hat_list`` / 100**2 with its forecast ``n_fallback``.
+    """
+    cov_scale = PERCENT**2
+    return (
+        stock_returns / PERCENT,
+        [S / cov_scale for S in rw_forecasts],
+        {
+            tag: {
+                "Sigma_hat_list": [S / cov_scale for S in res["Sigma_hat_list"]],
+                "n_fallback": res["n_fallback"],
+            }
+            for tag, res in forecast_results.items()
+        },
+    )
 
 
 def get_rw_forecasts(
@@ -328,17 +369,23 @@ def run_experiment() -> dict:
     # 3. Random walk forecasts
     rw_forecasts = get_rw_forecasts(Sigma_list, t_oos_start)
 
-    # 4. Portfolio optimization for all models × constraints
+    # 4. Convert once from percent to the decimal units the portfolio code expects
+    stock_returns_dec, rw_forecasts_dec, portfolio_inputs = to_decimal_units(
+        stock_returns, rw_forecasts, forecast_results
+    )
+    logger.info("Converted returns (/%g) and covariances (/%g) to decimals", PERCENT, PERCENT**2)
+
+    # 5. Portfolio optimization for all models × constraints
     portfolio_results, n_oos = run_all_portfolios(
-        forecast_results, rw_forecasts, stock_returns, t_oos_start
+        portfolio_inputs, rw_forecasts_dec, stock_returns_dec, t_oos_start
     )
     logger.info("Portfolio results computed for %d OOS days.", n_oos)
 
-    # 5. Build metrics table
+    # 6. Build metrics table
     df = build_metrics_table(portfolio_results)
     save_metrics(df, RESULTS_DIR)
 
-    # 6. Summary: best model per constraint
+    # 7. Summary: best model per constraint
     logger.info("\n=== Portfolio Performance Summary ===")
     for ctype in CONSTRAINT_TYPES:
         sub = df[df["constraint"] == ctype].sort_values("std_ann")
@@ -349,19 +396,20 @@ def run_experiment() -> dict:
             )
         )
 
-    # 7. Plots
+    # 8. Plots
     plot_std_comparison(df, RESULTS_DIR)
     for ctype in CONSTRAINT_TYPES:
         plot_cumulative_returns(portfolio_results, RESULTS_DIR, constraint_type=ctype, n_show=5)
     plot_weight_heatmap(portfolio_results, RESULTS_DIR, model_key="K3_LASSO_restricted")
     plot_turnover(df, RESULTS_DIR)
 
-    # 8. Save JSON summary
+    # 9. Save JSON summary
     best_restricted = df[df["constraint"] == "restricted"].sort_values("std_ann").iloc[0]
     best_long_only = df[df["constraint"] == "long_only"].sort_values("std_ann").iloc[0]
 
     summary = {
         "config": CFG,
+        "units": "decimal returns; std_ann_pct and constraint_summary in annualized percent",
         "n_oos": n_oos,
         "best_restricted": {
             "model": best_restricted["model"],
