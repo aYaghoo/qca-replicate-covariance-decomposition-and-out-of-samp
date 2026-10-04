@@ -129,6 +129,7 @@ enable_error_code = [
 [[tool.mypy.overrides]]
 module = ["sklearn.*", "statsmodels.*", "cvxpy.*", "massive.*"]
 ignore_missing_imports = true
+follow_imports = "skip"
 
 [[tool.mypy.overrides]]
 module = ["tests.*"]
