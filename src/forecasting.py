@@ -3,8 +3,9 @@ from typing import Any, Optional
 
 import numpy as np
 
+from src.lasso_har import HAR_MONTH, HAR_WEEK, adaptive_lasso_bic, lasso_bic
+
 from .decomposition import decompose_covariance
-from .lasso_har import adaptive_lasso_bic, lasso_bic
 from .utils import nearest_psd, safe_expm, safe_logm, vech, vech_to_matrix
 
 logger = logging.getLogger(__name__)
@@ -57,8 +58,8 @@ class _HARCache:
         Regression target is Sigma_f_t; regressors use t-1 lags per paper.
         """
         v_day = self.vech_mat[t - 1] if t >= 1 else np.zeros(self.M)
-        v_week = self.rolling_mean(t, 5)  # mean of [t-5 … t-1]
-        v_month = self.rolling_mean(t, 22)  # mean of [t-22 … t-1]
+        v_week = self.rolling_mean(t, HAR_WEEK)  # mean of [t-5 … t-1]
+        v_month = self.rolling_mean(t, HAR_MONTH)  # mean of [t-22 … t-1]
         return np.concatenate([[1.0], v_day, v_week, v_month])
 
     # ------------------------------------------------------------------
@@ -139,7 +140,7 @@ def forecast_factor_covariance(
     cache = _cache if _cache is not None else _HARCache(Sigma_f_series, use_log)
 
     # First observation with full month window
-    t_first = train_start + 22
+    t_first = train_start + HAR_MONTH
     t_last = train_end
 
     T_reg = t_last - t_first + 1
@@ -199,8 +200,8 @@ def _build_har_matrix_1d(series: np.ndarray, t_first: int, t_last: int) -> np.nd
     Z[:, 0] = 1.0
     Z[:, 1] = series[ts - 1]  # day lag: series[t-1]
     for j, t in enumerate(ts):
-        Z[j, 2] = _roll(t, 5)  # week mean
-        Z[j, 3] = _roll(t, 22)  # month mean
+        Z[j, 2] = _roll(t, HAR_WEEK)  # week mean
+        Z[j, 3] = _roll(t, HAR_MONTH)  # month mean
     return Z
 
 
@@ -228,7 +229,7 @@ def forecast_betas(
     B_hat : (K, N) forecast beta matrix
     """
     T_total, K, N = B_series.shape
-    t_first = train_start + 22
+    t_first = train_start + HAR_MONTH
     t_last = train_end
     T_reg = t_last - t_first + 1
 
@@ -251,7 +252,7 @@ def forecast_betas(
                 return 0.0
             return (cs[end - 1] - (cs[start - 1] if start > 0 else 0.0)) / n
 
-        return np.array([1.0, s[t_pred - 1], _roll(t_pred, 5), _roll(t_pred, 22)])
+        return np.array([1.0, s[t_pred - 1], _roll(t_pred, HAR_WEEK), _roll(t_pred, HAR_MONTH)])
 
     for col in range(K * N):
         series = B_flat[:, col]
@@ -555,7 +556,7 @@ def rolling_forecast_pipeline(
     har_cache = _HARCache(Sigma_f_arr, use_log=use_log)
 
     # ── 3. OOS window ─────────────────────────────────────────────────────
-    t_oos_start = rolling_window + 22
+    t_oos_start = rolling_window + HAR_MONTH
     t_oos_end = T - 1
     n_oos = t_oos_end - t_oos_start + 1
 
@@ -577,7 +578,7 @@ def rolling_forecast_pipeline(
 
     for step, t_pred in enumerate(range(t_oos_start, t_oos_end + 1)):
         train_end = t_pred - 1
-        train_start = max(0, train_end - rolling_window - 22 + 1)
+        train_start = max(0, train_end - rolling_window - HAR_MONTH + 1)
 
         if step % 50 == 0:
             logger.log(progress_level, "step %d/%d: forecasting t=%d", step + 1, n_oos, t_pred)

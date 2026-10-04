@@ -1,6 +1,9 @@
 import numpy as np
 from sklearn.linear_model import Lasso
 
+HAR_WEEK = 5  # weekly HAR horizon, in days
+HAR_MONTH = 22  # monthly HAR horizon, in days; the longest lag a HAR row needs
+
 
 def bic_score(y: np.ndarray, y_hat: np.ndarray, n_nonzero: int) -> float:
     """Compute BIC for LASSO selection.
@@ -153,31 +156,33 @@ def adaptive_lasso_bic(
     return coef_orig, intercept, best_alpha
 
 
-def har_design_matrix(
-    series_2d: np.ndarray,
-    t: int,
-    window: int,
-) -> np.ndarray:
+def har_design_matrix(series_2d: np.ndarray, t: int) -> np.ndarray:
     """Build HAR design matrix row at position t for a multi-dimensional series.
 
     For a (T, M) series, builds row: [1, series_day(t-1), series_week(t-1), series_month(t-1)]
-    where day = series[t-1], week = mean(series[t-5:t]), month = mean(series[t-22:t]).
+    where day = series[t-1], week = mean(series[t-HAR_WEEK:t]),
+    month = mean(series[t-HAR_MONTH:t]).
 
     Parameters
     ----------
     series_2d: (T, M) array
-    t: current time index (0-based, predicting t from t-1)
-    window: rolling estimation window size
+    t: current time index (0-based, predicting t from t-1); must be >= HAR_MONTH
 
     Returns
     -------
     row: (1 + 3*M,) regressor vector
+
+    Raises
+    ------
+    ValueError
+        If ``t < HAR_MONTH``, which would give a partial monthly average.
     """
+    if t < HAR_MONTH:
+        raise ValueError(f"t={t} < HAR_MONTH={HAR_MONTH}: monthly average would be partial")
     day_lag = series_2d[t - 1, :]  # (M,)
-    week_lag = series_2d[max(0, t - 5) : t, :].mean(axis=0)  # (M,)
-    month_lag = series_2d[max(0, t - 22) : t, :].mean(axis=0)  # (M,)
-    row = np.concatenate([[1.0], day_lag, week_lag, month_lag])
-    return row
+    week_lag = series_2d[t - HAR_WEEK : t, :].mean(axis=0)  # (M,)
+    month_lag = series_2d[t - HAR_MONTH : t, :].mean(axis=0)  # (M,)
+    return np.concatenate([[1.0], day_lag, week_lag, month_lag])
 
 
 def fit_har_lasso_equation(

@@ -16,7 +16,13 @@ from src.forecasting import (
     forecast_residual_blocks,
     rolling_forecast_pipeline,
 )
-from src.lasso_har import bic_score, fit_har_lasso_equation, har_design_matrix, lasso_bic
+from src.lasso_har import (
+    HAR_MONTH,
+    bic_score,
+    fit_har_lasso_equation,
+    har_design_matrix,
+    lasso_bic,
+)
 
 
 def make_psd(n: int, seed: int = 0) -> np.ndarray:
@@ -122,14 +128,14 @@ def test_har_design_matrix_returns_row():
     T, K = 60, 3
     M = K * (K + 1) // 2
     series_2d = np.random.default_rng(0).standard_normal((T, M))
-    row = har_design_matrix(series_2d, t=25, window=22)
+    row = har_design_matrix(series_2d, t=25)
     assert row.shape == (1 + 3 * M,)
 
 
 def test_har_design_matrix_intercept_is_one():
     T, M = 50, 3
     series_2d = np.random.default_rng(1).standard_normal((T, M))
-    row = har_design_matrix(series_2d, t=25, window=22)
+    row = har_design_matrix(series_2d, t=25)
     assert row[0] == pytest.approx(1.0)
 
 
@@ -137,8 +143,27 @@ def test_har_design_matrix_day_lag():
     T, M = 50, 2
     series_2d = np.random.default_rng(2).standard_normal((T, M))
     t = 30
-    row = har_design_matrix(series_2d, t=t, window=22)
+    row = har_design_matrix(series_2d, t=t)
     np.testing.assert_allclose(row[1 : 1 + M], series_2d[t - 1, :], atol=1e-14)
+
+
+@pytest.mark.parametrize("t", [0, 1, 5, 21])
+def test_har_design_matrix_rejects_partial_monthly_window(t):
+    series_2d = np.random.default_rng(3).standard_normal((50, 2))
+    with pytest.raises(ValueError, match="HAR_MONTH"):
+        har_design_matrix(series_2d, t=t)
+
+
+@pytest.mark.parametrize("t", [HAR_MONTH, 30, 49])
+def test_har_design_matrix_matches_production_har_row(t):
+    T, K = 50, 3
+    Sigma_f_series = make_sigma_arr(T, K)
+    tril = np.tril_indices(K)
+    vech_series = Sigma_f_series[:, tril[0], tril[1]]
+    np.testing.assert_allclose(
+        har_design_matrix(vech_series, t=t),
+        build_factor_cov_har_matrix(Sigma_f_series, t=t, use_log=False),
+    )
 
 
 # fit_har_lasso_equation tests
