@@ -227,11 +227,18 @@ def forecast_betas(
     Returns
     -------
     B_hat : (K, N) forecast beta matrix
+
+    Raises
+    ------
+    ValueError
+        If the window leaves no regression rows (``train_end < train_start + HAR_MONTH``).
     """
     T_total, K, N = B_series.shape
     t_first = train_start + HAR_MONTH
     t_last = train_end
     T_reg = t_last - t_first + 1
+    if T_reg <= 0:
+        raise ValueError(f"Insufficient data for beta HAR regression: T_reg={T_reg}")
 
     B_flat = B_series.reshape(T_total, K * N)  # (T, K*N)
     B_hat_flat = np.zeros(K * N)
@@ -302,11 +309,18 @@ def forecast_residual_blocks(
     Returns
     -------
     Sigma_e_hat : (N, N) block-diagonal residual covariance forecast
+
+    Raises
+    ------
+    ValueError
+        If the window leaves no regression rows (``train_end <= train_start``).
     """
     N = Sigma_e_series.shape[1]
     t_first = train_start + 1
     t_last = train_end
     T_reg = t_last - t_first + 1
+    if T_reg <= 0:
+        raise ValueError(f"Insufficient data for residual regression: T_reg={T_reg}")
 
     Sigma_e_hat = np.zeros((N, N))
 

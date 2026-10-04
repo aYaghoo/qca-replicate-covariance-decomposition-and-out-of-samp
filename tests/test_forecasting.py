@@ -292,6 +292,18 @@ def test_forecast_betas_finite():
     assert np.all(np.isfinite(forecast_betas(B_arr, train_start=0, train_end=50)))
 
 
+@pytest.mark.parametrize("train_end", [10, HAR_MONTH - 1])
+def test_forecast_betas_raises_without_regression_rows(train_end):
+    _, B_arr, _ = build_B_Se_arrays(60, 8, 2)
+    with pytest.raises(ValueError, match="T_reg="):
+        forecast_betas(B_arr, train_start=0, train_end=train_end)
+
+
+def test_forecast_betas_accepts_single_regression_row():
+    _, B_arr, _ = build_B_Se_arrays(60, 8, 2)
+    assert forecast_betas(B_arr, train_start=0, train_end=HAR_MONTH).shape == (2, 8)
+
+
 # forecast_residual_blocks tests
 
 
@@ -320,6 +332,16 @@ def test_forecast_residual_blocks_symmetric():
     _, _, Sigma_e_arr = build_B_Se_arrays(T, N, K)
     Se_hat = forecast_residual_blocks(Sigma_e_arr, sector_indices, 0, 45, n_alphas=3)
     np.testing.assert_allclose(Se_hat, Se_hat.T, atol=1e-14)
+
+
+@pytest.mark.parametrize(("train_start", "train_end"), [(10, 10), (10, 5)])
+def test_forecast_residual_blocks_raises_without_regression_rows(train_start, train_end):
+    N, K, S, T = 12, 2, 3, 30
+    _, _, Sigma_e_arr = build_B_Se_arrays(T, N, K)
+    with pytest.raises(ValueError, match="T_reg="):
+        forecast_residual_blocks(
+            Sigma_e_arr, make_sector_indices(N, S), train_start, train_end, n_alphas=3
+        )
 
 
 # rolling_forecast_pipeline integration tests
