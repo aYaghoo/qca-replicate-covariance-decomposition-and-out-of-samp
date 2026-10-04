@@ -228,7 +228,6 @@ def compute_portfolio_metrics(
       avg_gross_leverage, prop_negative, avg_turnover
     """
     T_oos = weights_history.shape[0]
-    N = weights_history.shape[1]
 
     # Portfolio returns
     port_returns = np.sum(weights_history * returns, axis=1)  # (T_oos,)

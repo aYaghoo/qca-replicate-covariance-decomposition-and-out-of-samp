@@ -29,7 +29,7 @@ def decompose_covariance(
     B_t: (K, N) factor loadings
     Sigma_e_t: (N, N) residual covariance
     """
-    K, N = W_t.shape
+    K = W_t.shape[0]
 
     # Factor covariance: K x K
     Sigma_f_t = W_t @ Sigma_t @ W_t.T

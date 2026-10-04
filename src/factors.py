@@ -22,7 +22,6 @@ def compute_market_weights(market_caps: pd.Series) -> np.ndarray:
 def double_sort_smb_hml(
     market_caps: pd.Series,
     bm_ratios: pd.Series,
-    returns: pd.DataFrame,
     size_breakpoint: float = 0.5,
     bm_breakpoints: tuple[float, float] = (0.30, 0.70),
 ) -> tuple[np.ndarray, np.ndarray]:
@@ -36,7 +35,6 @@ def double_sort_smb_hml(
     ----------
     market_caps: Series(N) of market capitalizations
     bm_ratios: Series(N) of book-to-market ratios
-    returns: DataFrame(T, N) of stock returns
     size_breakpoint: median split breakpoint for size
     bm_breakpoints: low/high breakpoints for BM sort
 
@@ -218,7 +216,7 @@ def build_factor_weight_matrix(
     if K >= 3:
         if bm_ratios is None:
             raise ValueError("bm_ratios required for K>=3")
-        w_smb, w_hml = double_sort_smb_hml(market_caps, bm_ratios, None)
+        w_smb, w_hml = double_sort_smb_hml(market_caps, bm_ratios)
         rows.extend([w_smb, w_hml])
 
     if K >= 5:

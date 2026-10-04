@@ -351,7 +351,7 @@ def forecast_residual_blocks(
         block_hat[tril_r, tril_c] = pred_vech_s
         block_hat += block_hat.T - np.diag(np.diag(block_hat))  # symmetrise
         block_hat = nearest_psd(block_hat)
-        Sigma_e_hat[np.ix_(sector_idx, sector_idx)] = block_hat
+        Sigma_e_hat[idx_2d] = block_hat
 
     return Sigma_e_hat
 

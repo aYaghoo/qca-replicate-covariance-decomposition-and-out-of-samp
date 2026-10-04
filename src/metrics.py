@@ -59,7 +59,6 @@ def random_walk_forecast(
 
 def compile_results_table(
     results: dict[str, dict],
-    Sigma_true_list: list[np.ndarray],
     rw_l2: float,
 ) -> dict:
     """Compile comparison table of L2 errors across all models.
@@ -67,7 +66,6 @@ def compile_results_table(
     Parameters
     ----------
     results: dict mapping model_name -> result dict with 'l2_errors'
-    Sigma_true_list: list of true realized covariance matrices
     rw_l2: random walk L2 error
 
     Returns

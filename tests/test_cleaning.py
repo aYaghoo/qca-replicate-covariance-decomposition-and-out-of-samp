@@ -51,7 +51,6 @@ def test_no_flags_without_outliers():
 
 def test_outlier_matrix_is_flagged():
     """A grossly inflated matrix is flagged."""
-    rng = np.random.default_rng(42)
     n = 5
     Sigma_list = make_sigma_list(T=40, n=n)
     # Replace one matrix with a very extreme version

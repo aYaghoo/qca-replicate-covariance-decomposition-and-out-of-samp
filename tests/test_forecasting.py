@@ -96,7 +96,7 @@ def test_lasso_bic_output_shapes():
     rng = np.random.default_rng(42)
     X = rng.standard_normal((T, p))
     y = rng.standard_normal(T)
-    coef, intercept, best_alpha = lasso_bic(X, y, n_alphas=3)
+    coef, _, best_alpha = lasso_bic(X, y, n_alphas=3)
     assert coef.shape == (p,)
     assert best_alpha > 0.0
 
