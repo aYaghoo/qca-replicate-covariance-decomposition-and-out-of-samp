@@ -15,6 +15,7 @@ import json
 import logging
 import sys
 from pathlib import Path
+from typing import Any
 
 import matplotlib
 import numpy as np
@@ -67,7 +68,9 @@ SHORT_LEVERAGE_CAP = 0.30
 MAX_WEIGHT = 0.20
 
 
-def generate_data(cfg: dict):
+def generate_data(
+    cfg: dict[str, Any],
+) -> tuple[list[np.ndarray], np.ndarray, list[np.ndarray], pd.Series, pd.Series, pd.DataFrame]:
     """Re-generate simulation data (must use same seed as Exp 1)."""
     sim = SimulatedMarketData(N=cfg["N"], K=cfg["K_max"], S=10, T=cfg["T"], seed=cfg["seed"])
     Sigma_list, _, stock_returns = sim.simulate_realized_covariances()
@@ -126,7 +129,7 @@ def run_all_portfolios(
     rw_forecasts: list[np.ndarray],
     stock_returns: np.ndarray,
     t_oos_start: int,
-) -> dict:
+) -> tuple[dict[str, dict[str, Any]], int]:
     """Run portfolio optimization for all models and constraint types."""
     n_oos_max = min(
         len(list(forecast_results.values())[0]["Sigma_hat_list"]),

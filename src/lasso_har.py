@@ -190,7 +190,7 @@ def fit_har_lasso_equation(
     y_i: np.ndarray,
     use_adaptive: bool = False,
     n_alphas: int = 30,
-) -> tuple[np.ndarray, float]:
+) -> np.ndarray:
     """Fit a single HAR equation with LASSO or adaptive LASSO.
 
     Parameters
@@ -202,8 +202,7 @@ def fit_har_lasso_equation(
 
     Returns
     -------
-    coef: (1 + 3*M,) coefficient vector [intercept, slopes]
-    intercept: scalar (already embedded in coef[0])
+    coef: (1 + 3*M,) coefficient vector [intercept, slopes...]; coef[0] is the intercept
     """
     # Design matrix without intercept (intercept handled by lasso_bic)
     X = Z[:, 1:]  # (T, 3*M)

@@ -17,6 +17,7 @@ import logging
 import sys
 import time
 from pathlib import Path
+from typing import Any
 
 import matplotlib
 import numpy as np
@@ -356,7 +357,7 @@ def plot_decomposition_check(
     logger.info("Saved decomposition check plot.")
 
 
-def run_experiment() -> None:
+def run_experiment() -> dict[str, Any]:
     """Main experiment runner for Exp 1."""
     logger.info("=" * 60)
     logger.info("Experiment 1: Covariance Decomposition and Forecasting")

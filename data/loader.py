@@ -86,8 +86,8 @@ def fetch_daily_returns(
     prices_df = pd.DataFrame(close_prices)
     prices_df = prices_df.ffill().dropna(how="all")
 
-    # Log-returns
-    returns = np.log(prices_df / prices_df.shift(1)).dropna()
+    # Compute log returns. DataFrame.apply keeps the frame type for the stubs.
+    returns = (prices_df / prices_df.shift(1)).apply(np.log).dropna()
     logger.info(
         "Fetched returns: shape %s, date range %s to %s",
         returns.shape,
