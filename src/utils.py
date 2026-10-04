@@ -28,14 +28,12 @@ def nearest_psd(M: np.ndarray, epsilon: float = 1e-8) -> np.ndarray:
 
 def safe_logm(M: np.ndarray) -> np.ndarray:
     """Compute matrix logarithm with PSD projection for numerical stability."""
-
     M_psd = nearest_psd(M)
     return logm(M_psd)
 
 
 def safe_expm(M: np.ndarray) -> np.ndarray:
     """Compute matrix exponential."""
-
     return expm(M)
 
 

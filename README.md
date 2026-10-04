@@ -90,6 +90,7 @@ Real stock data can be fetched via the Massive REST API:
 ```python
 import os
 from massive import RESTClient
+
 client = RESTClient(api_key=os.getenv("MASSIVE_API_KEY"))
 ```
 

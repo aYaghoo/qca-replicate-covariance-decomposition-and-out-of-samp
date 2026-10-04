@@ -45,7 +45,6 @@ def fetch_daily_returns(
     if not api_key:
         raise OSError("No Massive API key found. Set MASSIVE_TOKEN environment variable.")
 
-
     client = RESTClient(api_key=api_key)
     close_prices: dict[str, pd.Series] = {}
 
@@ -122,7 +121,6 @@ def load_or_simulate(
     tuple: (Sigma_list, factor_returns, stock_returns, sector_indices, market_caps, bm_ratios, accounting)
     """
     if use_simulation:
-
         sim = SimulatedMarketData(N=N, K=K, S=10, T=T, seed=seed)
         Sigma_list, factor_returns, stock_returns = sim.simulate_realized_covariances()
         market_caps = sim.generate_market_caps()

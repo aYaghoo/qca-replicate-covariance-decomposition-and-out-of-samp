@@ -147,7 +147,6 @@ def compute_portfolio_metrics(
       avg_diversification_ratio, avg_max_weight, avg_min_weight
       avg_gross_leverage, prop_negative, avg_turnover
     """
-
     T_oos = weights_history.shape[0]
     N = weights_history.shape[1]
 
