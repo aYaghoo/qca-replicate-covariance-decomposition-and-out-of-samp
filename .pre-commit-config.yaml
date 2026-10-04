@@ -1,0 +1,125 @@
+# Commit-time gate. The harness runs the same tools inside the agent loop;
+# this catches anything committed outside it (including by you).
+# Versions current as of Oct 2026; `pre-commit autoupdate` refreshes them.
+
+repos:
+  # --- Repo hygiene -----------------------------------------------------------
+  - repo: https://github.com/pre-commit/pre-commit-hooks
+    rev: v6.0.0
+    hooks:
+      - id: check-added-large-files
+        args: ["--maxkb=500"] # model weights go in DVC / Git LFS, not git
+      - id: check-merge-conflict
+      - id: detect-private-key
+      - id: check-ast
+      - id: debug-statements
+      - id: check-case-conflict
+      - id: check-executables-have-shebangs
+      - id: check-shebang-scripts-are-executable
+      - id: check-yaml
+      - id: check-toml
+      - id: check-json
+      - id: end-of-file-fixer
+      - id: trailing-whitespace
+      - id: mixed-line-ending
+        args: ["--fix=lf"]
+      - id: no-commit-to-branch
+        args: ["--branch", "main"]
+
+  # --- Lint and format ---------------------------------------------------------
+  - repo: https://github.com/astral-sh/ruff-pre-commit
+    rev: v0.16.10
+    hooks:
+      - id: ruff-check
+        args: ["--fix"]
+      - id: ruff-format
+
+  # --- Secrets -----------------------------------------------------------------
+  - repo: https://github.com/gitleaks/gitleaks
+    rev: v8.30.0
+    hooks:
+      - id: gitleaks
+
+  # --- Spelling in code and comments -------------------------------------------
+  - repo: https://github.com/codespell-project/codespell
+    rev: v2.4.3
+    hooks:
+      - id: codespell
+
+  # --- Lockfiles: requirements*.txt must match *.in, pinned with hashes ------
+  - repo: https://github.com/jazzband/pip-tools
+    rev: v7.6.1
+    hooks:
+      - id: pip-compile
+        name: pip-compile requirements.in
+        args: [--generate-hashes, --strip-extras, --allow-unsafe, requirements.in]
+        files: ^requirements\.(in|txt)$
+      - id: pip-compile
+        name: pip-compile requirements-dev.in
+        args: [--generate-hashes, --strip-extras, --allow-unsafe, requirements-dev.in]
+        files: ^requirements(-dev)?\.(in|txt)$
+
+  # --- Checks provided by the agent-harness repo ------------------------------
+  # Point repo at the harness's git URL, or a local path while developing.
+  - repo: https://github.com/aYaghoo/agent-harness
+    rev: v0.1.0
+    hooks:
+      - id: comment-length
+
+  # --- Tools that need the project's own environment ---------------------------
+  # Run as local hooks so they see your installed dependencies.
+  - repo: local
+    hooks:
+      - id: mypy
+        name: mypy (strict)
+        entry: mypy
+        language: system
+        types: [python]
+        require_serial: true
+
+      - id: pydoclint
+        name: pydoclint
+        entry: pydoclint
+        language: system
+        types: [python]
+        exclude: ^tests/
+
+      - id: interrogate
+        name: interrogate (docstring coverage)
+        entry: interrogate src
+        language: system
+        pass_filenames: false
+        types: [python]
+
+      - id: semgrep
+        name: semgrep
+        entry: >-
+          semgrep scan --error --metrics=off --quiet
+          --config .semgrep/
+          --config p/python
+          --config p/secrets
+          --config p/cwe-top-25
+          --config p/trailofbits
+        language: system
+        types: [python]
+        exclude: ^\.semgrep/
+
+      - id: vulture
+        name: vulture (dead code)
+        entry: vulture
+        language: system
+        pass_filenames: false
+        types: [python]
+
+      - id: pip-audit
+        name: pip-audit (vulnerable dependencies)
+        entry: pip-audit --strict --require-hashes -r requirements.txt
+        language: system
+        pass_filenames: false
+        files: ^requirements.*\.(in|txt)$
+
+      - id: modelscan
+        name: modelscan (model artifacts)
+        entry: bash -c 'for f in "$@"; do modelscan -p "$f" || exit 1; done' --
+        language: system
+        files: \.(pt|pth|ckpt|bin|pkl|joblib|h5|keras|onnx|safetensors)$

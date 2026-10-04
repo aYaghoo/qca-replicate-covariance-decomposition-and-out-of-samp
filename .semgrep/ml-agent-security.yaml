@@ -1,0 +1,123 @@
+# Custom Semgrep rules for ML and LLM-agent code.
+# These cover gaps in Ruff/Bandit: conditional unsafe loads, remote code
+# execution through model hubs, unpinned model sources, and LLM output
+# flowing into code execution.
+# Test with: semgrep --test .semgrep/
+
+rules:
+  # ---------------------------------------------------------------------------
+  # Unsafe deserialization of model and data files (CWE-502)
+  # ---------------------------------------------------------------------------
+  - id: torch-load-without-weights-only
+    languages: [python]
+    severity: ERROR
+    message: >-
+      torch.load must pass weights_only=True so a malicious checkpoint cannot
+      execute code. Prefer safetensors for model weights.
+    patterns:
+      - pattern: torch.load(...)
+      - pattern-not: torch.load(..., weights_only=True, ...)
+    metadata:
+      cwe: "CWE-502: Deserialization of Untrusted Data"
+
+  - id: numpy-load-allow-pickle
+    languages: [python]
+    severity: ERROR
+    message: >-
+      np.load with allow_pickle=True can execute code from the file. Store
+      object data as JSON or Parquet instead.
+    pattern: numpy.load(..., allow_pickle=True, ...)
+    metadata:
+      cwe: "CWE-502: Deserialization of Untrusted Data"
+
+  - id: keras-load-model-unsafe
+    languages: [python]
+    severity: ERROR
+    message: >-
+      load_model with safe_mode=False allows arbitrary code in Lambda layers.
+      Keep the default safe_mode=True.
+    pattern: $MODELS.load_model(..., safe_mode=False, ...)
+    metadata:
+      cwe: "CWE-502: Deserialization of Untrusted Data"
+
+  # ---------------------------------------------------------------------------
+  # Remote code execution through model hubs (CWE-94)
+  # ---------------------------------------------------------------------------
+  - id: hf-trust-remote-code
+    languages: [python]
+    severity: ERROR
+    message: >-
+      trust_remote_code=True downloads and runs Python from the model repo.
+      Use a model supported natively by the library, or vendor and review the
+      code.
+    pattern: $FUNC(..., trust_remote_code=True, ...)
+    metadata:
+      cwe: "CWE-94: Improper Control of Generation of Code"
+
+  - id: torch-hub-load
+    languages: [python]
+    severity: ERROR
+    message: >-
+      torch.hub.load executes hubconf.py from a remote repository. Download
+      weights explicitly and build the model from local code.
+    pattern: torch.hub.load(...)
+    metadata:
+      cwe: "CWE-94: Improper Control of Generation of Code"
+
+  # ---------------------------------------------------------------------------
+  # Supply chain: unpinned model and dataset sources (CWE-1357)
+  # ---------------------------------------------------------------------------
+  - id: hf-from-pretrained-unpinned
+    languages: [python]
+    severity: WARNING
+    message: >-
+      from_pretrained without revision= pulls whatever the repo currently
+      holds. Pin revision to a commit hash so the model you reviewed is the
+      model you run.
+    patterns:
+      - pattern: $CLS.from_pretrained($SRC, ...)
+      - pattern-not: $CLS.from_pretrained($SRC, ..., revision=$REV, ...)
+      # Local paths are fine.
+      - pattern-not: $CLS.from_pretrained("=~/^[./]/", ...)
+    metadata:
+      cwe: "CWE-1357: Reliance on Insufficiently Trustworthy Component"
+
+  - id: hf-download-unpinned
+    languages: [python]
+    severity: WARNING
+    message: >-
+      Pin revision= to a commit hash when downloading from the Hugging Face
+      Hub.
+    patterns:
+      - pattern-either:
+          - pattern: huggingface_hub.hf_hub_download(...)
+          - pattern: huggingface_hub.snapshot_download(...)
+          - pattern: datasets.load_dataset(...)
+      - pattern-not: $F(..., revision=$REV, ...)
+    metadata:
+      cwe: "CWE-1357: Reliance on Insufficiently Trustworthy Component"
+
+  # ---------------------------------------------------------------------------
+  # LLM agent: model output reaching code execution (CWE-94, CWE-78)
+  # ---------------------------------------------------------------------------
+  - id: llm-output-to-code-execution
+    languages: [python]
+    severity: ERROR
+    mode: taint
+    message: >-
+      Model output flows into a shell, subprocess, or eval/exec without
+      validation. Treat LLM output as untrusted input: parse it into a
+      constrained structure and validate against an allowlist first.
+    pattern-sources:
+      - pattern: $CLIENT.messages.create(...)
+      - pattern: $CLIENT.chat.completions.create(...)
+    pattern-sanitizers:
+      - pattern: validate_tool_call(...)
+    pattern-sinks:
+      - pattern: subprocess.$FN(...)
+      - pattern: os.system(...)
+      - pattern: os.popen(...)
+      - pattern: eval(...)
+      - pattern: exec(...)
+    metadata:
+      cwe: "CWE-94: Improper Control of Generation of Code"

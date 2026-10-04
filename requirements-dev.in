@@ -1,0 +1,17 @@
+# Development tools. Compile with:
+#   pip-compile --generate-hashes requirements-dev.in
+-c requirements.txt
+codespell
+interrogate
+modelscan
+mypy
+pip-audit
+pip-tools
+pre-commit
+pydoclint
+pytest
+ruff
+vulture
+pandas-stubs
+scipy-stubs
+types-seaborn

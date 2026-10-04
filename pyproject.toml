@@ -1,0 +1,166 @@
+# =============================================================================
+# Lint, type, and documentation policy for agent-written Python.
+# Profile: defense / ML systems.
+#
+# Style baseline:
+#   - PEP 8 via `ruff format` plus the E, W, and N rules
+#   - Google docstring convention via the D rules plus pydoclint
+# =============================================================================
+# Dependencies are declared in requirements.in / requirements-dev.in and
+# compiled with hashes by pip-compile; this file holds tool configuration only.
+
+[tool.ruff]
+target-version = "py312"
+line-length = 99 # PEP 8 allows up to 99 when a team agrees on it
+src = ["src", "tests"]
+extend-exclude = [".semgrep"] # rule test fixtures are intentionally bad code
+
+[tool.ruff.format]
+quote-style = "double"
+docstring-code-format = true
+
+[tool.ruff.lint]
+select = [
+    # --- PEP 8 and correctness ---
+    "E", "W",  # pycodestyle
+    "F",       # pyflakes
+    "N",       # pep8-naming
+    "I",       # isort
+    "UP",      # pyupgrade
+    "B",       # bugbear
+    "A",       # shadowing builtins
+    "C4", "SIM", "RET", "PIE", "PERF", "FURB", "RUF",
+    "ARG",     # unused arguments
+    "PTH",     # pathlib instead of os.path
+    "DTZ",     # timezone-aware datetimes (matters for logs and audit trails)
+    # --- ML libraries ---
+    "ICN",     # conventional np / pd aliases
+    "NPY",     # NumPy (e.g. legacy np.random -> np.random.Generator)
+    "PD",      # pandas-vet
+    "ASYNC",
+    # --- Docs and types ---
+    "D",       # docstrings (Google convention below)
+    "ANN",     # type annotations required (paired with mypy --strict)
+    # --- Complexity (NASA Power of 10 analogues) ---
+    "C90",     # McCabe complexity
+    "PL",      # pylint: function size, branches, args, magic values
+    # --- Security (Bandit) and error handling ---
+    "S",       # flake8-bandit; tagged with CWE IDs in Bandit's docs
+    "BLE",     # no blind `except Exception`
+    "TRY",     # exception anti-patterns
+    # --- Logging, no prints or debuggers left in ---
+    "T10", "T20", "G", "LOG",
+    # --- Hygiene ---
+    "ERA",     # commented-out code
+    "FIX",     # no TODO / FIXME / XXX / HACK left by the agent
+    "PGH",     # blanket `# noqa` / `# type: ignore` forbidden
+    "TID",     # banned APIs and relative imports (see below)
+    "SLF",     # private member access
+    "INP",     # missing __init__.py
+    "EXE",     # shebang / executable mismatches
+    # --- Tests ---
+    "PT",
+]
+ignore = [
+    "TRY003", # long messages in raise: noisy, low value
+    "D105",   # docstrings on magic methods
+    "D107",   # __init__ docstring (documented on the class, Google style)
+    # Conflict with `ruff format`; the formatter handles these.
+    "W191", "E111", "E114", "E117", "D206", "D300",
+]
+
+[tool.ruff.lint.per-file-ignores]
+"tests/**/*.py" = ["S101", "PLR2004", "D", "ANN", "SLF001", "ARG", "INP001"]
+"**/*.ipynb" = ["T20", "D", "INP001", "E402", "ERA001"]
+
+[tool.ruff.lint.mccabe]
+max-complexity = 10
+
+[tool.ruff.lint.pylint]
+max-args = 5
+max-branches = 10
+max-returns = 4
+max-statements = 40
+
+[tool.ruff.lint.pydocstyle]
+convention = "google"
+
+[tool.ruff.lint.flake8-tidy-imports]
+ban-relative-imports = "all"
+
+# Unsafe deserialization (CWE-502). Model and data files are an attack surface:
+# these formats can execute arbitrary code on load. Use safetensors, JSON,
+# Parquet, or NPZ without pickle instead. Conditional cases (torch.load,
+# np.load) are handled by the Semgrep rules in .semgrep/.
+[tool.ruff.lint.flake8-tidy-imports.banned-api]
+"pickle".msg = "pickle executes code on load (CWE-502). Use safetensors, JSON, or Parquet."
+"marshal".msg = "marshal is unsafe for untrusted data (CWE-502)."
+"shelve".msg = "shelve is pickle-backed (CWE-502)."
+"dill".msg = "dill executes code on load (CWE-502)."
+"cloudpickle".msg = "cloudpickle executes code on load (CWE-502)."
+"joblib.load".msg = "joblib.load unpickles (CWE-502). Use safetensors or skops."
+"pandas.read_pickle".msg = "read_pickle unpickles (CWE-502). Use Parquet."
+
+# =============================================================================
+# mypy: strict, plus extra error codes beyond --strict
+# =============================================================================
+[tool.mypy]
+python_version = "3.12"
+strict = true
+exclude = ["^\\.semgrep/"]
+warn_unreachable = true
+enable_error_code = [
+    "ignore-without-code", # `# type: ignore` must name the specific error
+    "redundant-expr",
+    "truthy-bool",
+    "truthy-iterable",
+    "possibly-undefined",
+    "redundant-self",
+    "unused-awaitable",
+]
+
+# Prefer installing stub packages (pandas-stubs, types-requests, ...) as dev
+# dependencies. For libraries with no stubs, ignore missing imports narrowly,
+# never globally.
+[[tool.mypy.overrides]]
+module = ["sklearn.*", "statsmodels.*", "cvxpy.*"]
+ignore_missing_imports = true
+
+[[tool.mypy.overrides]]
+module = ["tests.*"]
+disallow_untyped_defs = false
+
+# =============================================================================
+# Documentation completeness
+# =============================================================================
+[tool.pydoclint]
+style = "google"
+arg-type-hints-in-docstring = false # types live in annotations, not docstrings
+check-return-types = false
+
+[tool.interrogate]
+fail-under = 90
+ignore-init-method = true
+ignore-magic = true
+exclude = ["tests"]
+
+# =============================================================================
+# Dead code and spelling
+# =============================================================================
+[tool.vulture]
+min_confidence = 80
+paths = ["src"]
+
+[tool.codespell]
+skip = "*.ipynb,*.lock,*.svg"
+
+# =============================================================================
+# Architecture contracts (fill in for your package layout)
+# =============================================================================
+# [tool.importlinter]
+# root_package = "yourpkg"
+#
+# [[tool.importlinter.contracts]]
+# name = "Layered architecture"
+# type = "layers"
+# layers = ["yourpkg.agent", "yourpkg.tools", "yourpkg.core"]
