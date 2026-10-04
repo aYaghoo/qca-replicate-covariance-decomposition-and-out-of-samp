@@ -23,7 +23,7 @@ def decompose_covariance(
     W_t: (K, N) factor weight matrix
     reg_eps: regularization for Sigma_f inversion
 
-    Returns:
+    Returns
     -------
     Sigma_f_t: (K, K) factor covariance
     B_t: (K, N) factor loadings
@@ -73,7 +73,7 @@ def extract_sector_blocks(
     Sigma_e_t: (N, N) residual covariance matrix
     sector_indices: list of index arrays, one per sector
 
-    Returns:
+    Returns
     -------
     blocks: list of (N_s, N_s) block matrices
     """
@@ -100,7 +100,7 @@ def assemble_from_sector_blocks(
     sector_indices: list of index arrays, one per sector
     N: total number of assets
 
-    Returns:
+    Returns
     -------
     Sigma_e: (N, N) block-diagonal matrix
     """

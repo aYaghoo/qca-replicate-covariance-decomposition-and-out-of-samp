@@ -200,7 +200,7 @@ class SimulatedMarketData:
         r_{t,j} = B' f_{t,j} + e_{t,j}, f ~ N(0, Sigma_f_t/M), e ~ N(0, Sigma_e_t/M).
         The latent matrices are stored in self.Sigma_true_list.
 
-        Returns:
+        Returns
         -------
         Sigma_list: list of T (N, N) realized covariance matrices
         factor_returns: (T, K) daily factor returns (sum of intraday)

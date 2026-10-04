@@ -17,11 +17,11 @@ def average_l2_forecast_error(
     Sigma_hat_list: list of T_oos (N, N) forecast matrices
     Sigma_true_list: list of T_oos (N, N) realized matrices
 
-    Returns:
+    Returns
     -------
     mean_l2: scalar average L2 error
 
-    Raises:
+    Raises
     ------
     ValueError: if input lists have different lengths
     """
@@ -48,7 +48,7 @@ def random_walk_forecast(
     Sigma_list: full list of T realized covariance matrices
     t_oos_start: first out-of-sample index
 
-    Returns:
+    Returns
     -------
     list of random walk forecasts aligned to OOS period
     """
@@ -70,7 +70,7 @@ def compile_results_table(
     Sigma_true_list: list of true realized covariance matrices
     rw_l2: random walk L2 error
 
-    Returns:
+    Returns
     -------
     table: dict mapping model_name -> {'mean_l2', 'std_l2', 'relative_to_rw'}
     """
@@ -102,7 +102,7 @@ def lower_partial_std(returns: np.ndarray) -> float:
     ----------
     returns: 1D array of portfolio returns
 
-    Returns:
+    Returns
     -------
     lpstd: scalar lower partial standard deviation
     """
@@ -127,7 +127,7 @@ def compute_portfolio_metrics(
     returns: (T_oos, N) realized stock returns
     Sigma_hat_list: list of T_oos (N, N) forecast covariance matrices
 
-    Returns:
+    Returns
     -------
     dict with keys: std, std_ann, lpstd, lpstd_ann, excess_kurtosis, skewness,
     avg_diversification_ratio, avg_max_weight, avg_min_weight,

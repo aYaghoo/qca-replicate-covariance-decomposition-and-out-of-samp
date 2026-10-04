@@ -19,7 +19,7 @@ def min_variance_unconstrained(
     Sigma: (N, N) covariance matrix
     eps: ridge regularization for inversion
 
-    Returns:
+    Returns
     -------
     w: (N,) portfolio weights
     """
@@ -55,7 +55,7 @@ def min_variance_restricted(
     max_weight: maximum absolute position in any single stock
     eps: regularization for PSD projection
 
-    Returns:
+    Returns
     -------
     w: (N,) portfolio weights
     """
@@ -100,7 +100,7 @@ def min_variance_long_only(
     max_weight: maximum weight per asset
     eps: regularization
 
-    Returns:
+    Returns
     -------
     w: (N,) portfolio weights
     """
@@ -138,7 +138,7 @@ def compute_portfolio_metrics(
     returns: (T_oos, N) realized stock returns
     Sigma_hat_list: list of T_oos (N, N) forecast covariance matrices
 
-    Returns:
+    Returns
     -------
     dict with performance metrics:
       std: ex-post realized standard deviation
@@ -236,7 +236,7 @@ def run_portfolio_experiment(
     short_leverage_cap: for restricted
     max_weight: for restricted and long_only
 
-    Returns:
+    Returns
     -------
     dict with weights, metrics, and returns
     """

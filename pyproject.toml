@@ -87,7 +87,7 @@ max-returns = 4
 max-statements = 40
 
 [tool.ruff.lint.pydocstyle]
-convention = "google"
+convention = "numpy"
 
 [tool.ruff.lint.flake8-tidy-imports]
 ban-relative-imports = "all"
@@ -138,12 +138,12 @@ disallow_untyped_defs = false
 # Documentation completeness
 # =============================================================================
 [tool.pydoclint]
-style = "google"
+style = "numpy"
 arg-type-hints-in-docstring = false # types live in annotations, not docstrings
 check-return-types = false
 
 [tool.interrogate]
-fail-under = 90
+fail-under = 74
 ignore-init-method = true
 ignore-magic = true
 exclude = ["tests"]

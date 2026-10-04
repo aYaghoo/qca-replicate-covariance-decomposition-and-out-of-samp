@@ -13,7 +13,7 @@ def bic_score(y: np.ndarray, y_hat: np.ndarray, n_nonzero: int) -> float:
     y_hat: (T,) predicted values
     n_nonzero: number of non-zero coefficients (excluding intercept)
 
-    Returns:
+    Returns
     -------
     bic: scalar BIC value (lower is better)
     """
@@ -46,7 +46,7 @@ def lasso_bic(
     alpha_min_ratio: ratio of lambda_min to lambda_max
     standardize: whether to standardize predictors
 
-    Returns:
+    Returns
     -------
     coef: (p,) estimated coefficients
     intercept: scalar intercept
@@ -134,7 +134,7 @@ def adaptive_lasso_bic(
     alpha_min_ratio: ratio of lambda_min to lambda_max
     standardize: whether to standardize predictors
 
-    Returns:
+    Returns
     -------
     coef: (p,) adaptive LASSO coefficients
     intercept: scalar
@@ -172,7 +172,7 @@ def har_design_matrix(
     t: current time index (0-based, predicting t from t-1)
     window: rolling estimation window size
 
-    Returns:
+    Returns
     -------
     row: (1 + 3*M,) regressor vector
     """
@@ -198,7 +198,7 @@ def fit_har_lasso_equation(
     use_adaptive: if True, run two-stage adaptive LASSO
     n_alphas: number of alpha values in grid
 
-    Returns:
+    Returns
     -------
     coef: (1 + 3*M,) coefficient vector [intercept, slopes]
     intercept: scalar (already embedded in coef[0])

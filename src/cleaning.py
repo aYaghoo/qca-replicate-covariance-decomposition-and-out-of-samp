@@ -22,7 +22,7 @@ def clean_covariance_matrices(
     flag_fraction: flag matrix if more than this fraction of unique entries are extreme
     replacement_window: number of preceding non-flagged matrices to average for replacement
 
-    Returns:
+    Returns
     -------
     cleaned_list: list of cleaned covariance matrices
     is_flagged: boolean list indicating which days were flagged

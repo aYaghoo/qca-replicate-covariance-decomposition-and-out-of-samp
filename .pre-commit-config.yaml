@@ -63,7 +63,7 @@ repos:
   # --- Checks provided by the agent-harness repo ------------------------------
   # Point repo at the harness's git URL, or a local path while developing.
   - repo: https://github.com/aYaghoo/agent-harness
-    rev: v0.1.0
+    rev: v0.1.1
     hooks:
       - id: comment-length
 
@@ -77,13 +77,14 @@ repos:
         language: system
         types: [python]
         require_serial: true
+        exclude: ^\.semgrep/
 
       - id: pydoclint
         name: pydoclint
         entry: pydoclint
         language: system
         types: [python]
-        exclude: ^tests/
+        exclude: ^(tests|\.semgrep)/
 
       - id: interrogate
         name: interrogate (docstring coverage)

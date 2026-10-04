@@ -9,7 +9,7 @@ def compute_market_weights(market_caps: pd.Series) -> np.ndarray:
     ----------
     market_caps: Series of market caps for N stocks
 
-    Returns:
+    Returns
     -------
     w: (N,) array of value weights (sum to 1)
     """
@@ -38,7 +38,7 @@ def double_sort_smb_hml(
     size_breakpoint: median split breakpoint for size
     bm_breakpoints: low/high breakpoints for BM sort
 
-    Returns:
+    Returns
     -------
     w_smb: (N,) weight vector for SMB factor
     w_hml: (N,) weight vector for HML factor
@@ -96,7 +96,7 @@ def decile_factor_weights(
     market_caps: (N,) array of market capitalizations
     long_low: if True, long bottom decile and short top decile
 
-    Returns:
+    Returns
     -------
     w: (N,) net weight vector
     """
@@ -137,7 +137,7 @@ def investment_factor_weights(
     size_char, bm_char, inv_char: (N,) arrays of characteristics
     market_caps: (N,) array of market capitalizations
 
-    Returns:
+    Returns
     -------
     w: (N,) net weight vector
     """
@@ -195,7 +195,7 @@ def build_factor_weight_matrix(
     bm_ratios: Series(N) book-to-market ratios (required for K>=3)
     accounting: DataFrame(N, cols) with accounting data (required for K>=5)
 
-    Returns:
+    Returns
     -------
     W: (K, N) weight matrix where each row is a factor portfolio
     """

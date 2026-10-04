@@ -90,7 +90,7 @@ def build_factor_cov_har_matrix(
     t              : time index for regressor construction (predicts t+1)
     use_log        : if True, work in matrix-log space
 
-    Returns:
+    Returns
     -------
     row : (1 + 3*M,) regressor row, M = K(K+1)/2
     """
@@ -126,7 +126,7 @@ def forecast_factor_covariance(
     n_alphas       : number of alpha values for lambda grid
     _cache         : pre-built _HARCache (avoids rebuilding per OOS step)
 
-    Returns:
+    Returns
     -------
     Sigma_f_hat : (K, K) forecast factor covariance matrix
     """
@@ -220,7 +220,7 @@ def forecast_betas(
     train_start: start of rolling window
     train_end  : end of rolling window (inclusive)
 
-    Returns:
+    Returns
     -------
     B_hat : (K, N) forecast beta matrix
     """
@@ -295,7 +295,7 @@ def forecast_residual_blocks(
     use_adaptive    : use adaptive LASSO
     n_alphas        : number of alpha values
 
-    Returns:
+    Returns
     -------
     Sigma_e_hat : (N, N) block-diagonal residual covariance forecast
     """
@@ -376,7 +376,7 @@ def rolling_forecast_pipeline(
     n_alphas      : lambda grid size
     verbose       : log progress every 50 steps
 
-    Returns:
+    Returns
     -------
     dict with keys:
       Sigma_hat_list   – list of T_oos (N, N) full forecasts

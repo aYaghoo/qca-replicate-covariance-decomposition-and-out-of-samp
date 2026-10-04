@@ -35,7 +35,7 @@ def fetch_daily_returns(
     end_date   : ISO date string, e.g. '2011-12-31'
     api_key    : Massive API key; if None, reads MASSIVE_TOKEN env var
 
-    Returns:
+    Returns
     -------
     returns : DataFrame (T, N) of daily log-returns, indexed by date,
               columns ordered as `tickers`.  Missing values are forward-filled
@@ -117,7 +117,7 @@ def load_or_simulate(
     tickers        : list of tickers for live data fetch
     start_date, end_date : date range for live data
 
-    Returns:
+    Returns
     -------
     tuple: (Sigma_list, factor_returns, stock_returns, sector_indices, market_caps, bm_ratios, accounting)
     """
