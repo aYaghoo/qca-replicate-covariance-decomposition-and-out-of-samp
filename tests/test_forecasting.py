@@ -2,11 +2,13 @@
 
 import sys
 from pathlib import Path
+from typing import Any
 
 import numpy as np
 import pytest
 
 sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
+import src.forecasting as fc
 from src.forecasting import (
     build_factor_cov_har_matrix,
     forecast_betas,
@@ -371,3 +373,130 @@ def test_rolling_forecast_log_vs_nolog_same_length():
     r1 = rolling_forecast_pipeline(**kwargs, use_log=False)
     r2 = rolling_forecast_pipeline(**kwargs, use_log=True)
     assert len(r1["l2_errors"]) == len(r2["l2_errors"])
+
+
+# rolling_forecast_pipeline: random-walk fallback on LinAlgError
+
+
+def _small_pipeline_inputs() -> tuple[
+    list[np.ndarray], np.ndarray, list[np.ndarray], dict[str, Any]
+]:
+    N, K, T, win = 10, 2, 75, 45
+    return (
+        make_sigma_list(T, N),
+        make_W(K, N),
+        make_sector_indices(N, 3),
+        {"K": K, "rolling_window": win, "n_alphas": 3, "verbose": False},
+    )
+
+
+def test_pipeline_linalg_error_falls_back_and_is_recorded(monkeypatch, caplog):
+    Sigma_list, W, sectors, kwargs = _small_pipeline_inputs()
+    real_forecast_betas = fc.forecast_betas
+    calls = {"n": 0}
+    failing_steps = {1, 3}
+
+    def flaky_forecast_betas(*args, **kw):
+        step = calls["n"]
+        calls["n"] += 1
+        if step in failing_steps:
+            raise np.linalg.LinAlgError("injected")
+        return real_forecast_betas(*args, **kw)
+
+    monkeypatch.setattr(fc, "forecast_betas", flaky_forecast_betas)
+    with caplog.at_level("WARNING", logger="src.forecasting"):
+        res = rolling_forecast_pipeline(
+            Sigma_list=Sigma_list, W_t=W, sector_indices=sectors, **kwargs
+        )
+
+    assert res["n_fallback"] == 2
+    assert res["fallback_steps"] == [1, 3]
+    t0 = res["t_oos_start"]
+    for step in failing_steps:
+        np.testing.assert_array_equal(res["Sigma_hat_list"][step], Sigma_list[t0 + step - 1])
+    assert sum("using random walk" in r.getMessage() for r in caplog.records) == 2
+
+
+def test_pipeline_no_fallback_reports_zero():
+    Sigma_list, W, sectors, kwargs = _small_pipeline_inputs()
+    res = rolling_forecast_pipeline(Sigma_list=Sigma_list, W_t=W, sector_indices=sectors, **kwargs)
+    assert res["n_fallback"] == 0
+    assert res["fallback_steps"] == []
+
+
+def test_pipeline_other_exceptions_propagate(monkeypatch):
+    Sigma_list, W, sectors, kwargs = _small_pipeline_inputs()
+
+    def broken_forecast_betas(*args, **kw):
+        raise ValueError("not a LinAlgError")
+
+    monkeypatch.setattr(fc, "forecast_betas", broken_forecast_betas)
+    with pytest.raises(ValueError, match="not a LinAlgError"):
+        rolling_forecast_pipeline(Sigma_list=Sigma_list, W_t=W, sector_indices=sectors, **kwargs)
+
+
+# rolling_forecast_pipeline: input validation
+
+
+@pytest.mark.parametrize("window", [0, -5])
+def test_pipeline_rejects_non_positive_window(window):
+    Sigma_list, W, sectors, kwargs = _small_pipeline_inputs()
+    kwargs["rolling_window"] = window
+    with pytest.raises(ValueError, match="rolling_window must be positive"):
+        rolling_forecast_pipeline(Sigma_list=Sigma_list, W_t=W, sector_indices=sectors, **kwargs)
+
+
+@pytest.mark.parametrize("bad_value", [np.nan, np.inf, -np.inf])
+def test_pipeline_rejects_non_finite_matrix_and_reports_first_index(bad_value):
+    Sigma_list, W, sectors, kwargs = _small_pipeline_inputs()
+    Sigma_list[7] = Sigma_list[7].copy()
+    Sigma_list[7][2, 3] = bad_value
+    Sigma_list[30] = Sigma_list[30].copy()
+    Sigma_list[30][0, 0] = np.nan
+    with pytest.raises(ValueError, match=r"Sigma_list\[7\]"):
+        rolling_forecast_pipeline(Sigma_list=Sigma_list, W_t=W, sector_indices=sectors, **kwargs)
+
+
+def test_pipeline_rejects_non_integer_sector_indices():
+    Sigma_list, W, sectors, kwargs = _small_pipeline_inputs()
+    sectors[1] = sectors[1].astype(float)
+    with pytest.raises(ValueError, match=r"sector_indices\[1\]"):
+        rolling_forecast_pipeline(Sigma_list=Sigma_list, W_t=W, sector_indices=sectors, **kwargs)
+
+
+def test_pipeline_rejects_boolean_sector_mask():
+    Sigma_list, W, sectors, kwargs = _small_pipeline_inputs()
+    sectors[0] = np.zeros(10, dtype=bool)
+    with pytest.raises(ValueError, match=r"sector_indices\[0\]"):
+        rolling_forecast_pipeline(Sigma_list=Sigma_list, W_t=W, sector_indices=sectors, **kwargs)
+
+
+def test_pipeline_converts_integer_lists_to_arrays():
+    Sigma_list, W, sectors, kwargs = _small_pipeline_inputs()
+    as_arrays = rolling_forecast_pipeline(
+        Sigma_list=Sigma_list, W_t=W, sector_indices=sectors, **kwargs
+    )
+    as_lists = rolling_forecast_pipeline(
+        Sigma_list=Sigma_list, W_t=W, sector_indices=[s.tolist() for s in sectors], **kwargs
+    )
+    assert as_lists["n_fallback"] == 0
+    np.testing.assert_array_equal(as_lists["l2_errors"], as_arrays["l2_errors"])
+
+
+def test_pipeline_rejects_k_not_matching_weight_matrix():
+    Sigma_list, W, sectors, kwargs = _small_pipeline_inputs()
+    kwargs["K"] = 3
+    with pytest.raises(ValueError, match="does not match W_t"):
+        rolling_forecast_pipeline(Sigma_list=Sigma_list, W_t=W, sector_indices=sectors, **kwargs)
+
+
+# lasso_bic: fit errors propagate
+
+
+def test_lasso_bic_propagates_fit_errors():
+    rng = np.random.default_rng(0)
+    X = rng.standard_normal((30, 3))
+    y = rng.standard_normal(30)
+    y[4] = np.nan
+    with pytest.raises(ValueError, match="alpha"):
+        lasso_bic(X, y, n_alphas=3)

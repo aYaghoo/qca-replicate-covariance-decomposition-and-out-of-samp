@@ -176,10 +176,11 @@ def run_all_models(
                 mean_l2 = float(np.mean(res["l2_errors"]))
                 mean_l2_f = float(np.mean(res["l2_factor_errors"]))
                 logger.info(
-                    "  %s: mean_l2=%.4f, mean_l2_factor=%.4f, elapsed=%.1fs",
+                    "  %s: mean_l2=%.4f, mean_l2_factor=%.4f, n_fallback=%d, elapsed=%.1fs",
                     model_name,
                     mean_l2,
                     mean_l2_f,
+                    res["n_fallback"],
                     elapsed,
                 )
                 results[model_name] = res
@@ -225,6 +226,7 @@ def save_results_table(
             "std_l2_full": float(np.std(rw_baseline["l2_errors"])),
             "mean_l2_factor": float("nan"),
             "rel_to_rw": 1.0,
+            "n_fallback": 0,
         }
     )
 
@@ -249,6 +251,7 @@ def save_results_table(
                 "std_l2_full": std_l2,
                 "mean_l2_factor": mean_l2_f,
                 "rel_to_rw": mean_l2 / rw_baseline["mean_l2"],
+                "n_fallback": res["n_fallback"],
             }
         )
 
@@ -380,7 +383,9 @@ def run_experiment() -> None:
 
     # 6. Save results
     df = save_results_table(results, rw_baseline, CFG, RESULTS_DIR)
-    logger.info("\n%s", df[["K", "method", "log", "mean_l2_full", "rel_to_rw"]].to_string())
+    logger.info(
+        "\n%s", df[["K", "method", "log", "mean_l2_full", "rel_to_rw", "n_fallback"]].to_string()
+    )
 
     # 7. Plots
     plot_l2_errors(results, rw_baseline, RESULTS_DIR)
@@ -398,6 +403,8 @@ def run_experiment() -> None:
                 "std_l2": float(np.std(r["l2_errors"])),
                 "mean_l2_factor": float(np.mean(r["l2_factor_errors"])),
                 "rel_to_rw": float(np.mean(r["l2_errors"])) / rw_baseline["mean_l2"],
+                "n_fallback": r["n_fallback"],
+                "fallback_steps": r["fallback_steps"],
             }
             for name, r in results.items()
         },

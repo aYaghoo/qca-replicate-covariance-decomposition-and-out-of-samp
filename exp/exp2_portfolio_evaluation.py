@@ -31,7 +31,7 @@ from src.data_simulation import SimulatedMarketData
 from src.factors import build_factor_weight_matrix
 from src.forecasting import rolling_forecast_pipeline
 from src.metrics import random_walk_forecast
-from src.portfolio import run_portfolio_experiment
+from src.portfolio import check_solver_installed, run_portfolio_experiment
 
 logging.basicConfig(level=logging.INFO, format="%(asctime)s %(levelname)s %(message)s")
 logger = logging.getLogger(__name__)
@@ -147,6 +147,7 @@ def run_all_portfolios(
             short_leverage_cap=SHORT_LEVERAGE_CAP,
             max_weight=MAX_WEIGHT,
         )
+        res["n_forecast_fallback"] = 0
         all_results[key] = res
 
     # Model-based portfolios
@@ -162,6 +163,7 @@ def run_all_portfolios(
                 short_leverage_cap=SHORT_LEVERAGE_CAP,
                 max_weight=MAX_WEIGHT,
             )
+            res["n_forecast_fallback"] = fc_res["n_fallback"]
             all_results[key] = res
 
     return all_results, n_oos_max
@@ -190,6 +192,8 @@ def build_metrics_table(portfolio_results: dict) -> pd.DataFrame:
                 "avg_gross_leverage": m["avg_gross_leverage"],
                 "prop_negative": m["prop_negative"],
                 "avg_turnover": m["avg_turnover"],
+                "n_fallback": m["n_fallback"],
+                "n_forecast_fallback": res["n_forecast_fallback"],
             }
         )
     df = pd.DataFrame(rows)
@@ -302,6 +306,7 @@ def run_experiment() -> dict:
     logger.info("Experiment 2: Minimum-Variance Portfolio Evaluation")
     logger.info("=" * 60)
     logger.info("Config: %s", CFG)
+    check_solver_installed()
 
     # 1. Generate data (same seed as Exp 1)
     Sigma_list, stock_returns, sector_indices, market_caps, bm_ratios, accounting = generate_data(
@@ -335,7 +340,11 @@ def run_experiment() -> dict:
     for ctype in CONSTRAINT_TYPES:
         sub = df[df["constraint"] == ctype].sort_values("std_ann")
         logger.info("\nConstraint: %s", ctype)
-        logger.info(sub[["model", "std_ann", "lpstd_ann", "avg_turnover"]].to_string(index=False))
+        logger.info(
+            sub[["model", "std_ann", "lpstd_ann", "avg_turnover", "n_fallback"]].to_string(
+                index=False
+            )
+        )
 
     # 7. Plots
     plot_std_comparison(df, RESULTS_DIR)
@@ -358,6 +367,10 @@ def run_experiment() -> dict:
         "best_long_only": {
             "model": best_long_only["model"],
             "std_ann_pct": float(best_long_only["std_ann"]),
+        },
+        "n_fallback_total": int(df["n_fallback"].sum()),
+        "n_forecast_fallback_by_model": {
+            tag: fc["n_fallback"] for tag, fc in forecast_results.items()
         },
         "constraint_summary": df.groupby("constraint")["std_ann"]
         .agg(["mean", "min", "max"])

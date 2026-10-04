@@ -1,8 +1,83 @@
+"""Minimum-variance portfolio optimizers and portfolio performance metrics."""
+
+import logging
+from typing import Any
+
 import cvxpy as cp
 import numpy as np
 from scipy import stats as spstats
 
 from .utils import nearest_psd
+
+logger = logging.getLogger(__name__)
+
+SOLVER = cp.CLARABEL
+ACCEPTED_STATUSES = (cp.OPTIMAL, cp.OPTIMAL_INACCURATE)
+
+
+class OptimizationError(RuntimeError):
+    """A portfolio optimizer failed to produce an optimal solution."""
+
+
+def check_solver_installed(solver: str | None = None) -> None:
+    """Raise if the configured cvxpy solver is not installed.
+
+    Parameters
+    ----------
+    solver
+        Name of the cvxpy solver to check. Defaults to the module's ``SOLVER``.
+
+    Raises
+    ------
+    RuntimeError
+        If ``solver`` is not in ``cvxpy.installed_solvers()``.
+    """
+    solver = SOLVER if solver is None else solver
+    if solver not in cp.installed_solvers():
+        raise RuntimeError(
+            f"cvxpy solver {solver!r} is not installed; installed: {cp.installed_solvers()}"
+        )
+
+
+def check_weight_cap_feasible(N: int, max_weight: float) -> None:
+    """Raise if no fully invested portfolio of ``N`` assets satisfies the weight cap.
+
+    Parameters
+    ----------
+    N
+        Number of assets.
+    max_weight
+        Maximum absolute weight per asset.
+
+    Raises
+    ------
+    ValueError
+        If ``max_weight * N < 1``.
+    """
+    if max_weight * N < 1:
+        raise ValueError(f"Weight cap infeasible: max_weight * N = {max_weight} * {N} < 1")
+
+
+def _solve(prob: cp.Problem) -> None:
+    """Solve ``prob`` with ``SOLVER`` and raise unless it reaches an accepted status.
+
+    Parameters
+    ----------
+    prob
+        The cvxpy problem to solve in place.
+
+    Raises
+    ------
+    OptimizationError
+        If the solver raises ``cvxpy.error.SolverError`` or ends with a status
+        not in ``ACCEPTED_STATUSES``.
+    """
+    try:
+        prob.solve(solver=SOLVER, verbose=False)
+    except cp.error.SolverError as exc:
+        raise OptimizationError(f"Solver {SOLVER} failed: {exc}") from exc
+    if prob.status not in ACCEPTED_STATUSES:
+        raise OptimizationError(f"Solver {SOLVER} returned status {prob.status!r}")
 
 
 def min_variance_unconstrained(
@@ -22,16 +97,20 @@ def min_variance_unconstrained(
     Returns
     -------
     w: (N,) portfolio weights
+
+    Raises
+    ------
+    OptimizationError
+        If the regularized covariance matrix is singular.
     """
     N = Sigma.shape[0]
     Sigma_reg = Sigma + eps * np.eye(N)
     ones = np.ones(N)
     try:
         Sigma_inv_ones = np.linalg.solve(Sigma_reg, ones)
-        w = Sigma_inv_ones / (ones @ Sigma_inv_ones)
-    except np.linalg.LinAlgError:
-        w = np.ones(N) / N
-    return w
+    except np.linalg.LinAlgError as exc:
+        raise OptimizationError(f"Covariance matrix is singular: {exc}") from exc
+    return Sigma_inv_ones / (ones @ Sigma_inv_ones)
 
 
 def min_variance_restricted(
@@ -58,8 +137,15 @@ def min_variance_restricted(
     Returns
     -------
     w: (N,) portfolio weights
+
+    Notes
+    -----
+    Raises ``ValueError`` (from ``check_weight_cap_feasible``) if the weight cap
+    is infeasible, and ``OptimizationError`` (from ``_solve``) if the solver
+    fails or does not reach an accepted status.
     """
     N = Sigma.shape[0]
+    check_weight_cap_feasible(N, max_weight)
     Sigma_psd = nearest_psd(Sigma, epsilon=eps)
 
     w_plus = cp.Variable(N, nonneg=True)
@@ -74,15 +160,8 @@ def min_variance_restricted(
     ]
 
     prob = cp.Problem(objective, constraints)
-    try:
-        prob.solve(solver=cp.CLARABEL, verbose=False)
-        if prob.status in ["optimal", "optimal_inaccurate"] and w.value is not None:
-            return w.value
-    except Exception:
-        pass
-
-    # Fallback: equal-weight
-    return np.ones(N) / N
+    _solve(prob)
+    return np.asarray(w.value, dtype=float)
 
 
 def min_variance_long_only(
@@ -103,8 +182,15 @@ def min_variance_long_only(
     Returns
     -------
     w: (N,) portfolio weights
+
+    Notes
+    -----
+    Raises ``ValueError`` (from ``check_weight_cap_feasible``) if the weight cap
+    is infeasible, and ``OptimizationError`` (from ``_solve``) if the solver
+    fails or does not reach an accepted status.
     """
     N = Sigma.shape[0]
+    check_weight_cap_feasible(N, max_weight)
     Sigma_psd = nearest_psd(Sigma, epsilon=eps)
 
     w = cp.Variable(N, nonneg=True)
@@ -115,14 +201,8 @@ def min_variance_long_only(
     ]
 
     prob = cp.Problem(objective, constraints)
-    try:
-        prob.solve(solver=cp.CLARABEL, verbose=False)
-        if prob.status in ["optimal", "optimal_inaccurate"] and w.value is not None:
-            return np.maximum(w.value, 0)
-    except Exception:
-        pass
-
-    return np.ones(N) / N
+    _solve(prob)
+    return np.maximum(np.asarray(w.value, dtype=float), 0)
 
 
 def compute_portfolio_metrics(
@@ -218,14 +298,52 @@ def compute_portfolio_metrics(
     }
 
 
+def _optimize(
+    Sigma_hat: np.ndarray,
+    constraint_type: str,
+    short_leverage_cap: float,
+    max_weight: float,
+) -> np.ndarray:
+    """Dispatch to the optimizer for ``constraint_type``.
+
+    Parameters
+    ----------
+    Sigma_hat
+        Forecast covariance matrix, shape (N, N).
+    constraint_type
+        One of ``CONSTRAINT_TYPES``.
+    short_leverage_cap
+        Short leverage cap for the restricted regime.
+    max_weight
+        Per-asset weight cap for the restricted and long-only regimes.
+
+    Returns
+    -------
+    np.ndarray
+        Portfolio weights, shape (N,).
+    """
+    if constraint_type == "unconstrained":
+        return min_variance_unconstrained(Sigma_hat)
+    if constraint_type == "restricted":
+        return min_variance_restricted(Sigma_hat, short_leverage_cap, max_weight)
+    return min_variance_long_only(Sigma_hat, max_weight)
+
+
+CONSTRAINT_TYPES = ("unconstrained", "restricted", "long_only")
+
+
 def run_portfolio_experiment(
     Sigma_hat_list: list[np.ndarray],
     returns: np.ndarray,
     constraint_type: str = "unconstrained",
     short_leverage_cap: float = 0.30,
     max_weight: float = 0.20,
-) -> dict:
+) -> dict[str, Any]:
     """Run full portfolio experiment for a given constraint regime.
+
+    On a day where the optimizer raises ``OptimizationError``, the portfolio
+    falls back to equal weights, a warning is logged, and the day is counted
+    in ``metrics["n_fallback"]`` and listed in ``fallback_steps``.
 
     Parameters
     ----------
@@ -237,27 +355,44 @@ def run_portfolio_experiment(
 
     Returns
     -------
-    dict with weights, metrics, and returns
+    dict with weights, constraint_type, metrics, and fallback_steps
+
+    Raises
+    ------
+    ValueError
+        If ``constraint_type`` is unknown or the weight cap is infeasible.
     """
+    if constraint_type not in CONSTRAINT_TYPES:
+        raise ValueError(f"Unknown constraint_type: {constraint_type}")
     T_oos = len(Sigma_hat_list)
     N = Sigma_hat_list[0].shape[0]
+    if constraint_type != "unconstrained":
+        check_weight_cap_feasible(N, max_weight)
+        check_solver_installed()
     weights_history = np.zeros((T_oos, N))
+    fallback_steps: list[int] = []
 
     for t, Sigma_hat in enumerate(Sigma_hat_list):
-        if constraint_type == "unconstrained":
-            w = min_variance_unconstrained(Sigma_hat)
-        elif constraint_type == "restricted":
-            w = min_variance_restricted(Sigma_hat, short_leverage_cap, max_weight)
-        elif constraint_type == "long_only":
-            w = min_variance_long_only(Sigma_hat, max_weight)
-        else:
-            raise ValueError(f"Unknown constraint_type: {constraint_type}")
-        weights_history[t] = w
+        try:
+            weights_history[t] = _optimize(
+                Sigma_hat, constraint_type, short_leverage_cap, max_weight
+            )
+        except OptimizationError as exc:
+            logger.warning(
+                "%s optimization failed on day %d: %s; using equal weights",
+                constraint_type,
+                t,
+                exc,
+            )
+            fallback_steps.append(t)
+            weights_history[t] = np.ones(N) / N
 
     metrics = compute_portfolio_metrics(weights_history, returns, Sigma_hat_list)
+    metrics["n_fallback"] = len(fallback_steps)
 
     return {
         "weights": weights_history,
         "constraint_type": constraint_type,
         "metrics": metrics,
+        "fallback_steps": fallback_steps,
     }

@@ -85,10 +85,7 @@ def lasso_bic(
         # Paper: (1/T)||y - Z*gamma||^2 + 2*lambda*||beta||_1
         # Mapping: alpha_sklearn = lambda_paper (factor of 2 absorbed in convention)
         lasso = Lasso(alpha=alpha, fit_intercept=True, max_iter=5000, tol=1e-4)
-        try:
-            lasso.fit(X_s, y_c)
-        except Exception:
-            continue
+        lasso.fit(X_s, y_c)
 
         coef_s = lasso.coef_
         y_hat = X_s @ coef_s + lasso.intercept_ + y_mean

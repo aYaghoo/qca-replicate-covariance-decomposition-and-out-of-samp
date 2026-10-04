@@ -1,10 +1,13 @@
-from typing import Optional
+import logging
+from typing import Any, Optional
 
 import numpy as np
 
 from .decomposition import decompose_covariance
 from .lasso_har import adaptive_lasso_bic, lasso_bic
 from .utils import nearest_psd, safe_expm, safe_logm, vech, vech_to_matrix
+
+logger = logging.getLogger(__name__)
 
 # ---------------------------------------------------------------------------
 # Pre-computed HAR feature cache (eliminates repeated logm calls)
@@ -343,6 +346,144 @@ def forecast_residual_blocks(
 # ---------------------------------------------------------------------------
 
 
+def _validate_pipeline_inputs(
+    Sigma_list: list[np.ndarray],
+    W_t: np.ndarray,
+    sector_indices: list[np.ndarray],
+    K: int,
+    rolling_window: int,
+) -> list[np.ndarray]:
+    """Check pipeline inputs and return the sector indices as integer arrays.
+
+    Parameters
+    ----------
+    Sigma_list
+        Realized covariance matrices, each of shape (N, N).
+    W_t
+        Factor weight matrix, shape (K, N).
+    sector_indices
+        One index sequence per sector. Lists of integers are converted.
+    K
+        Number of factors; must equal the number of rows of ``W_t``.
+    rolling_window
+        Estimation window length; must be positive.
+
+    Returns
+    -------
+    list[np.ndarray]
+        The sector indices, each as a 1-D integer array.
+
+    Raises
+    ------
+    ValueError
+        If ``rolling_window`` is not positive, ``K`` does not match ``W_t``,
+        a covariance matrix contains NaN or inf, or a sector index is not a
+        1-D array of integers.
+    """
+    if rolling_window <= 0:
+        raise ValueError(f"rolling_window must be positive, got {rolling_window}")
+    if W_t.shape[0] != K:
+        raise ValueError(f"K={K} does not match W_t with {W_t.shape[0]} rows")
+    for t, Sigma in enumerate(Sigma_list):
+        if not np.isfinite(Sigma).all():
+            raise ValueError(f"Sigma_list[{t}] contains NaN or inf (first bad index: {t})")
+    checked = []
+    for s, idx in enumerate(sector_indices):
+        arr = np.asarray(idx)
+        if arr.ndim != 1 or arr.dtype.kind not in "iu":
+            raise ValueError(
+                f"sector_indices[{s}] must be a 1-D integer array, "
+                f"got dtype {arr.dtype} with shape {arr.shape}"
+            )
+        checked.append(arr)
+    return checked
+
+
+def _decompose_all(
+    Sigma_list: list[np.ndarray], W_t: np.ndarray
+) -> tuple[np.ndarray, np.ndarray, np.ndarray]:
+    """Decompose every matrix in ``Sigma_list`` into factor, beta, and residual parts.
+
+    Parameters
+    ----------
+    Sigma_list
+        T realized covariance matrices, each of shape (N, N).
+    W_t
+        Factor weight matrix, shape (K, N).
+
+    Returns
+    -------
+    tuple[np.ndarray, np.ndarray, np.ndarray]
+        Factor covariances (T, K, K), betas (T, K, N), residual covariances (T, N, N).
+    """
+    T = len(Sigma_list)
+    K, N = W_t.shape
+    Sigma_f_arr = np.zeros((T, K, K))
+    B_arr = np.zeros((T, K, N))
+    Sigma_e_arr = np.zeros((T, N, N))
+    for t in range(T):
+        Sigma_f_arr[t], B_arr[t], Sigma_e_arr[t] = decompose_covariance(Sigma_list[t], W_t)
+    return Sigma_f_arr, B_arr, Sigma_e_arr
+
+
+def _recombine(B_hat: np.ndarray, Sigma_f_hat: np.ndarray, Sigma_e_hat: np.ndarray) -> np.ndarray:
+    """Recombine component forecasts into a symmetric PSD covariance forecast.
+
+    Parameters
+    ----------
+    B_hat
+        Beta forecast, shape (K, N).
+    Sigma_f_hat
+        Factor covariance forecast, shape (K, K).
+    Sigma_e_hat
+        Residual covariance forecast, shape (N, N).
+
+    Returns
+    -------
+    np.ndarray
+        ``nearest_psd`` of the symmetrized ``B_hat.T @ Sigma_f_hat @ B_hat + Sigma_e_hat``.
+    """
+    Sigma_hat = B_hat.T @ Sigma_f_hat @ B_hat + Sigma_e_hat
+    Sigma_hat = (Sigma_hat + Sigma_hat.T) / 2
+    return nearest_psd(Sigma_hat)
+
+
+def _random_walk_step(
+    Sigma_list: list[np.ndarray],
+    Sigma_f_arr: np.ndarray,
+    B_arr: np.ndarray,
+    Sigma_e_arr: np.ndarray,
+    t_pred: int,
+) -> tuple[np.ndarray, np.ndarray, np.ndarray, np.ndarray]:
+    """Return the random-walk forecast for ``t_pred``: copies of day ``t_pred - 1``.
+
+    Parameters
+    ----------
+    Sigma_list
+        Realized covariance matrices.
+    Sigma_f_arr
+        Factor covariances, shape (T, K, K).
+    B_arr
+        Betas, shape (T, K, N).
+    Sigma_e_arr
+        Residual covariances, shape (T, N, N).
+    t_pred
+        Index of the day being forecast.
+
+    Returns
+    -------
+    tuple[np.ndarray, np.ndarray, np.ndarray, np.ndarray]
+        Full covariance, factor covariance, betas, and residual covariance of day ``t_pred - 1``.
+    """
+    prev = t_pred - 1
+    return (
+        Sigma_list[prev].copy(),
+        Sigma_f_arr[prev].copy(),
+        B_arr[prev].copy(),
+        Sigma_e_arr[prev].copy(),
+    )
+
+
 def rolling_forecast_pipeline(
     Sigma_list: list[np.ndarray],
     W_t: np.ndarray,
@@ -353,7 +494,7 @@ def rolling_forecast_pipeline(
     use_adaptive: bool = False,
     n_alphas: int = 20,
     verbose: bool = True,
-) -> dict:
+) -> dict[str, Any]:
     """Full rolling-window one-step-ahead covariance forecasting pipeline.
 
     At each forecast origin t:
@@ -363,6 +504,11 @@ def rolling_forecast_pipeline(
 
     Performance: All logm / vech computations are pre-computed once via
     _HARCache, so rolling-mean construction is O(1) per step.
+
+    If a step raises ``np.linalg.LinAlgError``, that step falls back to the
+    random-walk forecast (the previous day's matrices), a warning is logged,
+    and the step is recorded in ``fallback_steps``. Any other exception
+    propagates.
 
     Parameters
     ----------
@@ -374,7 +520,8 @@ def rolling_forecast_pipeline(
     use_log       : matrix-log transform for factor covariance
     use_adaptive  : adaptive LASSO
     n_alphas      : lambda grid size
-    verbose       : log progress every 50 steps
+    verbose       : log progress at INFO if True, at DEBUG if False.
+                    Fallback warnings are logged either way.
 
     Returns
     -------
@@ -388,23 +535,21 @@ def rolling_forecast_pipeline(
       n_oos            – number of out-of-sample forecasts
       t_oos_start      – first OOS index
       K                – factor count
+      n_fallback       – number of steps that fell back to the random walk
+      fallback_steps   – OOS step indices (positions in the lists above) that fell back
+
+    Raises
+    ------
+    ValueError
+        If the inputs fail validation (see ``_validate_pipeline_inputs``).
     """
+    sector_indices = _validate_pipeline_inputs(Sigma_list, W_t, sector_indices, K, rolling_window)
+    progress_level = logging.INFO if verbose else logging.DEBUG
     T = len(Sigma_list)
-    N = Sigma_list[0].shape[0]
 
     # ── 1. Decompose all T matrices (single pass) ─────────────────────────
-    if verbose:
-        print("Decomposing all covariance matrices …")
-
-    Sigma_f_arr = np.zeros((T, K, K))
-    B_arr = np.zeros((T, K, N))
-    Sigma_e_arr = np.zeros((T, N, N))
-
-    for t in range(T):
-        Sf, Bt, Se = decompose_covariance(Sigma_list[t], W_t)
-        Sigma_f_arr[t] = Sf
-        B_arr[t] = Bt
-        Sigma_e_arr[t] = Se
+    logger.log(progress_level, "Decomposing all covariance matrices")
+    Sigma_f_arr, B_arr, Sigma_e_arr = _decompose_all(Sigma_list, W_t)
 
     # ── 2. Pre-build HAR cache (single logm pass if use_log) ─────────────
     har_cache = _HARCache(Sigma_f_arr, use_log=use_log)
@@ -414,8 +559,13 @@ def rolling_forecast_pipeline(
     t_oos_end = T - 1
     n_oos = t_oos_end - t_oos_start + 1
 
-    if verbose:
-        print(f"Running {n_oos} rolling forecasts (t={t_oos_start} … {t_oos_end})")
+    logger.log(
+        progress_level,
+        "Running %d rolling forecasts (t=%d to %d)",
+        n_oos,
+        t_oos_start,
+        t_oos_end,
+    )
 
     Sigma_hat_list: list[np.ndarray] = []
     Sigma_f_hat_list: list[np.ndarray] = []
@@ -423,13 +573,14 @@ def rolling_forecast_pipeline(
     Sigma_e_hat_list: list[np.ndarray] = []
     l2_errors: list[float] = []
     l2_factor_errors: list[float] = []
+    fallback_steps: list[int] = []
 
     for step, t_pred in enumerate(range(t_oos_start, t_oos_end + 1)):
         train_end = t_pred - 1
         train_start = max(0, train_end - rolling_window - 22 + 1)
 
-        if verbose and step % 50 == 0:
-            print(f"  step {step + 1}/{n_oos}: forecasting t={t_pred}")
+        if step % 50 == 0:
+            logger.log(progress_level, "step %d/%d: forecasting t=%d", step + 1, n_oos, t_pred)
 
         try:
             # 2a. Factor covariance (uses pre-built cache – no redundant logm)
@@ -456,17 +607,16 @@ def rolling_forecast_pipeline(
             )
 
             # 2d. Recombine
-            Sigma_hat = B_hat.T @ Sigma_f_hat @ B_hat + Sigma_e_hat
-            Sigma_hat = (Sigma_hat + Sigma_hat.T) / 2
-            Sigma_hat = nearest_psd(Sigma_hat)
+            Sigma_hat = _recombine(B_hat, Sigma_f_hat, Sigma_e_hat)
 
-        except Exception as exc:
-            if verbose:
-                print(f"  warning at step {step}: {exc} — using random walk")
-            Sigma_hat = Sigma_list[t_pred - 1].copy()
-            Sigma_f_hat = Sigma_f_arr[t_pred - 1].copy()
-            B_hat = B_arr[t_pred - 1].copy()
-            Sigma_e_hat = Sigma_e_arr[t_pred - 1].copy()
+        except np.linalg.LinAlgError as exc:
+            logger.warning(
+                "Forecast failed at step %d (t=%d): %s; using random walk", step, t_pred, exc
+            )
+            fallback_steps.append(step)
+            Sigma_hat, Sigma_f_hat, B_hat, Sigma_e_hat = _random_walk_step(
+                Sigma_list, Sigma_f_arr, B_arr, Sigma_e_arr, t_pred
+            )
 
         Sigma_hat_list.append(Sigma_hat)
         Sigma_f_hat_list.append(Sigma_f_hat)
@@ -488,4 +638,6 @@ def rolling_forecast_pipeline(
         "n_oos": n_oos,
         "t_oos_start": t_oos_start,
         "K": K,
+        "n_fallback": len(fallback_steps),
+        "fallback_steps": fallback_steps,
     }

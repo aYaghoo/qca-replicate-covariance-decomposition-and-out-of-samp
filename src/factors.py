@@ -1,6 +1,8 @@
 import numpy as np
 import pandas as pd
 
+FACTOR_COUNTS = (1, 3, 5, 7)
+
 
 def compute_market_weights(market_caps: pd.Series) -> np.ndarray:
     """Compute value-weighted market portfolio weights.
@@ -198,7 +200,14 @@ def build_factor_weight_matrix(
     Returns
     -------
     W: (K, N) weight matrix where each row is a factor portfolio
+
+    Raises
+    ------
+    ValueError
+        If ``K`` is not in ``FACTOR_COUNTS``, or an input required for ``K`` is missing.
     """
+    if K not in FACTOR_COUNTS:
+        raise ValueError(f"K must be one of {FACTOR_COUNTS}, got {K}")
     caps = market_caps.values.astype(float)
 
     # Factor 1: Market (value-weighted)
