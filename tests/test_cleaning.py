@@ -20,6 +20,16 @@ def make_sigma_list(T: int = 50, n: int = 5, seed: int = 0) -> list:
     return [make_random_psd(n, seed + t) for t in range(T)]
 
 
+def expected_replacement(
+    Sigma_list: list[np.ndarray], flags: list[bool], t: int, window: int
+) -> np.ndarray:
+    """Documented rule: symmetrized mean of the `window` nearest preceding unflagged inputs."""
+    preceding = [i for i in range(t) if not flags[i]][-window:]
+    assert preceding, f"no unflagged matrices precede t={t}"
+    avg = np.mean([Sigma_list[i] for i in preceding], axis=0)
+    return (avg + avg.T) / 2
+
+
 # ──────────────────────────────────────────────────────────────────────────────
 # Basic output structure
 # ──────────────────────────────────────────────────────────────────────────────
@@ -69,8 +79,12 @@ def test_flagged_matrix_is_replaced():
     Sigma_list[35] = extreme
 
     cleaned, flags = clean_covariance_matrices(Sigma_list, sigma_threshold=4.0, flag_fraction=0.25)
-    if flags[35]:
-        assert not np.allclose(cleaned[35], extreme), "Flagged matrix should be replaced"
+    assert flags[35], "Extreme matrix at t=35 should be flagged"
+    np.testing.assert_allclose(
+        cleaned[35], expected_replacement(Sigma_list, flags, t=35, window=10), rtol=1e-12
+    )
+    # The replacement is restored to the normal scale: near the pre-corruption matrix.
+    assert np.linalg.norm(cleaned[35] - original_35) < np.linalg.norm(cleaned[35] - extreme)
 
 
 def test_replacement_is_average_of_preceding():
@@ -84,9 +98,12 @@ def test_replacement_is_average_of_preceding():
     cleaned, flags = clean_covariance_matrices(
         Sigma_list, sigma_threshold=4.0, flag_fraction=0.25, replacement_window=5
     )
-    if flags[20]:
-        # Replacement should differ substantially from extreme
-        assert not np.allclose(cleaned[20], extreme, rtol=0.1)
+    assert flags[20], "Extreme matrix at t=20 should be flagged"
+    np.testing.assert_allclose(
+        cleaned[20], expected_replacement(Sigma_list, flags, t=20, window=5), rtol=1e-12
+    )
+    # Replacement should differ substantially from extreme
+    assert not np.allclose(cleaned[20], extreme, rtol=0.1)
 
 
 def test_unflagged_matrices_unchanged():
