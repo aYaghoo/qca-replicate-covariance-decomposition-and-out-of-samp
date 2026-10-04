@@ -1,12 +1,16 @@
 """Tests for src/decomposition.py — factor covariance decomposition."""
 
-import numpy as np
-import pytest
 import sys
 from pathlib import Path
 
+import numpy as np
+
 sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
-from src.decomposition import decompose_covariance, extract_sector_blocks, assemble_from_sector_blocks
+from src.decomposition import (
+    assemble_from_sector_blocks,
+    decompose_covariance,
+    extract_sector_blocks,
+)
 from src.utils import vech, vech_to_matrix
 
 
@@ -30,6 +34,7 @@ def make_weight_matrix(K: int, N: int, seed: int = 0) -> np.ndarray:
 # decompose_covariance tests
 # ──────────────────────────────────────────────────────────────────────────────
 
+
 def test_decompose_output_shapes():
     """Factor cov (K×K), betas (K×N), and residual (N×N) have correct shapes."""
     N, K = 10, 3
@@ -48,8 +53,12 @@ def test_decompose_reconstruction_identity():
     W = make_weight_matrix(K, N)
     Sf, Bt, Se = decompose_covariance(Sigma, W)
     reconstructed = Bt.T @ Sf @ Bt + Se
-    np.testing.assert_allclose(Sigma, reconstructed, atol=1e-8,
-        err_msg="Decomposition identity Sigma = B'Σ_f B + Σ_e failed")
+    np.testing.assert_allclose(
+        Sigma,
+        reconstructed,
+        atol=1e-8,
+        err_msg="Decomposition identity Sigma = B'Σ_f B + Σ_e failed",
+    )
 
 
 def test_factor_cov_is_symmetric():
@@ -110,13 +119,15 @@ def test_different_asset_sizes():
         W = make_weight_matrix(K, N)
         Sf, Bt, Se = decompose_covariance(Sigma, W)
         reconstructed = Bt.T @ Sf @ Bt + Se
-        np.testing.assert_allclose(Sigma, reconstructed, atol=1e-6,
-            err_msg=f"Reconstruction failed for N={N}, K={K}")
+        np.testing.assert_allclose(
+            Sigma, reconstructed, atol=1e-6, err_msg=f"Reconstruction failed for N={N}, K={K}"
+        )
 
 
 # ──────────────────────────────────────────────────────────────────────────────
 # extract_sector_blocks / assemble_from_sector_blocks tests
 # ──────────────────────────────────────────────────────────────────────────────
+
 
 def make_sector_indices(N: int, S: int = 4) -> list:
     """Partition N assets into S sectors of roughly equal size."""
@@ -138,7 +149,7 @@ def test_extract_sector_blocks_shape():
     blocks = extract_sector_blocks(Se, sector_indices)
     assert len(blocks) == 5
     for idx, block in zip(sector_indices, blocks):
-        assert block.shape == (len(idx), len(idx)), f"Sector block shape mismatch"
+        assert block.shape == (len(idx), len(idx)), "Sector block shape mismatch"
 
 
 def test_assemble_block_diagonal_structure():
@@ -153,8 +164,12 @@ def test_assemble_block_diagonal_structure():
         for s2, idx2 in enumerate(sector_indices):
             if s1 != s2:
                 cross_block = assembled[np.ix_(idx1, idx2)]
-                np.testing.assert_allclose(cross_block, 0, atol=1e-14,
-                    err_msg=f"Cross-sector block ({s1},{s2}) is not zero")
+                np.testing.assert_allclose(
+                    cross_block,
+                    0,
+                    atol=1e-14,
+                    err_msg=f"Cross-sector block ({s1},{s2}) is not zero",
+                )
 
 
 def test_assemble_diagonal_blocks_match_input():
@@ -194,6 +209,7 @@ def test_assemble_output_shape():
 # vech / vech_to_matrix round-trip tests
 # ──────────────────────────────────────────────────────────────────────────────
 
+
 def test_vech_length():
     """vech of (K×K) symmetric matrix has K*(K+1)/2 elements."""
     for K in [1, 3, 5, 7]:
@@ -207,8 +223,9 @@ def test_vech_round_trip():
     for n in [2, 4, 6, 10]:
         M = make_random_psd(n)
         M_rec = vech_to_matrix(vech(M), n)
-        np.testing.assert_allclose(M_rec, M, atol=1e-14,
-            err_msg=f"vech round-trip failed for n={n}")
+        np.testing.assert_allclose(
+            M_rec, M, atol=1e-14, err_msg=f"vech round-trip failed for n={n}"
+        )
 
 
 def test_vech_to_matrix_is_symmetric():

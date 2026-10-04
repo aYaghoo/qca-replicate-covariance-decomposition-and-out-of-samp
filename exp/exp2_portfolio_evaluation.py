@@ -1,5 +1,4 @@
-"""
-Experiment 2: Minimum-Variance Portfolio Evaluation
+"""Experiment 2: Minimum-Variance Portfolio Evaluation
 
 Uses one-step-ahead covariance forecasts from Exp 1 to form daily
 minimum-variance portfolios under three constraint regimes:
@@ -12,27 +11,27 @@ Evaluates ex-post risk and portfolio characteristics for each model.
 Usage: python -m exp.exp2_portfolio_evaluation
 """
 
-import sys
 import json
 import logging
+import sys
 from pathlib import Path
-from typing import Dict, List
 
+import matplotlib
 import numpy as np
 import pandas as pd
-import matplotlib
+
 matplotlib.use("Agg")
 import matplotlib.pyplot as plt
 import seaborn as sns
 
 sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
 
-from src.data_simulation import SimulatedMarketData
 from src.cleaning import clean_covariance_matrices
+from src.data_simulation import SimulatedMarketData
 from src.factors import build_factor_weight_matrix
 from src.forecasting import rolling_forecast_pipeline
-from src.portfolio import run_portfolio_experiment
 from src.metrics import random_walk_forecast
+from src.portfolio import run_portfolio_experiment
 
 logging.basicConfig(level=logging.INFO, format="%(asctime)s %(levelname)s %(message)s")
 logger = logging.getLogger(__name__)
@@ -56,11 +55,11 @@ CFG = dict(
 PORTFOLIO_MODELS = [
     dict(K=1, use_log=False, use_adaptive=False, tag="K1_LASSO"),
     dict(K=3, use_log=False, use_adaptive=False, tag="K3_LASSO"),
-    dict(K=3, use_log=False, use_adaptive=True,  tag="K3_AdaLASSO"),
-    dict(K=3, use_log=True,  use_adaptive=False, tag="K3_Log_LASSO"),
+    dict(K=3, use_log=False, use_adaptive=True, tag="K3_AdaLASSO"),
+    dict(K=3, use_log=True, use_adaptive=False, tag="K3_Log_LASSO"),
     dict(K=5, use_log=False, use_adaptive=False, tag="K5_LASSO"),
     dict(K=7, use_log=False, use_adaptive=False, tag="K7_LASSO"),
-    dict(K=7, use_log=False, use_adaptive=True,  tag="K7_AdaLASSO"),
+    dict(K=7, use_log=False, use_adaptive=True, tag="K7_AdaLASSO"),
 ]
 
 CONSTRAINT_TYPES = ["unconstrained", "restricted", "long_only"]
@@ -68,7 +67,7 @@ SHORT_LEVERAGE_CAP = 0.30
 MAX_WEIGHT = 0.20
 
 
-def generate_data(cfg: Dict):
+def generate_data(cfg: dict):
     """Re-generate simulation data (must use same seed as Exp 1)."""
     sim = SimulatedMarketData(N=cfg["N"], K=cfg["K_max"], S=10, T=cfg["T"], seed=cfg["seed"])
     Sigma_list, _, stock_returns = sim.simulate_realized_covariances()
@@ -80,13 +79,13 @@ def generate_data(cfg: Dict):
 
 
 def get_forecast_results(
-    Sigma_list: List[np.ndarray],
-    sector_indices: List[np.ndarray],
+    Sigma_list: list[np.ndarray],
+    sector_indices: list[np.ndarray],
     market_caps,
     bm_ratios,
     accounting,
-    cfg: Dict,
-) -> Dict[str, Dict]:
+    cfg: dict,
+) -> dict[str, dict]:
     """Run rolling forecasts for all portfolio models."""
     results = {}
     for mspec in PORTFOLIO_MODELS:
@@ -115,25 +114,25 @@ def get_forecast_results(
 
 
 def get_rw_forecasts(
-    Sigma_list: List[np.ndarray],
+    Sigma_list: list[np.ndarray],
     t_oos_start: int,
-) -> List[np.ndarray]:
+) -> list[np.ndarray]:
     """Naive random-walk forecasts."""
     return random_walk_forecast(Sigma_list, t_oos_start)
 
 
 def run_all_portfolios(
-    forecast_results: Dict[str, Dict],
-    rw_forecasts: List[np.ndarray],
+    forecast_results: dict[str, dict],
+    rw_forecasts: list[np.ndarray],
     stock_returns: np.ndarray,
     t_oos_start: int,
-) -> Dict:
+) -> dict:
     """Run portfolio optimization for all models and constraint types."""
     n_oos_max = min(
         len(list(forecast_results.values())[0]["Sigma_hat_list"]),
         len(rw_forecasts),
     )
-    oos_returns = stock_returns[t_oos_start: t_oos_start + n_oos_max]
+    oos_returns = stock_returns[t_oos_start : t_oos_start + n_oos_max]
 
     all_results = {}
 
@@ -168,31 +167,31 @@ def run_all_portfolios(
     return all_results, n_oos_max
 
 
-def build_metrics_table(portfolio_results: Dict) -> pd.DataFrame:
+def build_metrics_table(portfolio_results: dict) -> pd.DataFrame:
     """Assemble performance metrics into a comparison table."""
     rows = []
     for key, res in portfolio_results.items():
         m = res["metrics"]
         # Strip constraint suffix correctly — "long_only" contains an underscore,
         # so we must match full suffix strings rather than use rsplit("_", 1).
-        ctype = next(
-            ct for ct in CONSTRAINT_TYPES if key.endswith(f"_{ct}")
-        )
+        ctype = next(ct for ct in CONSTRAINT_TYPES if key.endswith(f"_{ct}"))
         model = key[: -(len(ctype) + 1)]
-        rows.append({
-            "model": model,
-            "constraint": ctype,
-            "std_ann": m["std_ann"] * 100,          # convert to %
-            "lpstd_ann": m["lpstd_ann"] * 100,
-            "excess_kurtosis": m["excess_kurtosis"],
-            "skewness": m["skewness"],
-            "avg_div_ratio": m["avg_diversification_ratio"],
-            "avg_max_weight": m["avg_max_weight"],
-            "avg_min_weight": m["avg_min_weight"],
-            "avg_gross_leverage": m["avg_gross_leverage"],
-            "prop_negative": m["prop_negative"],
-            "avg_turnover": m["avg_turnover"],
-        })
+        rows.append(
+            {
+                "model": model,
+                "constraint": ctype,
+                "std_ann": m["std_ann"] * 100,  # convert to %
+                "lpstd_ann": m["lpstd_ann"] * 100,
+                "excess_kurtosis": m["excess_kurtosis"],
+                "skewness": m["skewness"],
+                "avg_div_ratio": m["avg_diversification_ratio"],
+                "avg_max_weight": m["avg_max_weight"],
+                "avg_min_weight": m["avg_min_weight"],
+                "avg_gross_leverage": m["avg_gross_leverage"],
+                "prop_negative": m["prop_negative"],
+                "avg_turnover": m["avg_turnover"],
+            }
+        )
     df = pd.DataFrame(rows)
     return df
 
@@ -211,9 +210,10 @@ def plot_std_comparison(df: pd.DataFrame, path: Path) -> None:
     for ax, ctype in zip(axes, CONSTRAINT_TYPES):
         subset = df[df["constraint"] == ctype].copy()
         subset = subset.sort_values("std_ann")
-        colors = ["steelblue" if "RandomWalk" in m else "tomato"
-                  if "Log" in m else "seagreen"
-                  for m in subset["model"]]
+        colors = [
+            "steelblue" if "RandomWalk" in m else "tomato" if "Log" in m else "seagreen"
+            for m in subset["model"]
+        ]
         ax.barh(subset["model"], subset["std_ann"], color=colors, alpha=0.85)
         ax.set_xlabel("Annualized Std Dev (%)")
         ax.set_title(f"Constraint: {ctype}")
@@ -230,7 +230,7 @@ def plot_std_comparison(df: pd.DataFrame, path: Path) -> None:
 
 
 def plot_cumulative_returns(
-    portfolio_results: Dict,
+    portfolio_results: dict,
     path: Path,
     constraint_type: str = "restricted",
     n_show: int = 6,
@@ -260,7 +260,7 @@ def plot_cumulative_returns(
 
 
 def plot_weight_heatmap(
-    portfolio_results: Dict,
+    portfolio_results: dict,
     path: Path,
     model_key: str = "K3_LASSO_restricted",
 ) -> None:
@@ -296,7 +296,7 @@ def plot_turnover(df: pd.DataFrame, path: Path) -> None:
     logger.info("Saved turnover plot.")
 
 
-def run_experiment() -> Dict:
+def run_experiment() -> dict:
     """Main experiment runner for Exp 2."""
     logger.info("=" * 60)
     logger.info("Experiment 2: Minimum-Variance Portfolio Evaluation")
@@ -304,7 +304,9 @@ def run_experiment() -> Dict:
     logger.info("Config: %s", CFG)
 
     # 1. Generate data (same seed as Exp 1)
-    Sigma_list, stock_returns, sector_indices, market_caps, bm_ratios, accounting = generate_data(CFG)
+    Sigma_list, stock_returns, sector_indices, market_caps, bm_ratios, accounting = generate_data(
+        CFG
+    )
     t_oos_start = CFG["rolling_window"] + 22
     oos_stock_returns = stock_returns[t_oos_start:]
 
@@ -357,7 +359,9 @@ def run_experiment() -> Dict:
             "model": best_long_only["model"],
             "std_ann_pct": float(best_long_only["std_ann"]),
         },
-        "constraint_summary": df.groupby("constraint")["std_ann"].agg(["mean", "min", "max"]).to_dict(),
+        "constraint_summary": df.groupby("constraint")["std_ann"]
+        .agg(["mean", "min", "max"])
+        .to_dict(),
     }
     with open(RESULTS_DIR / "exp2_summary.json", "w") as f:
         json.dump(summary, f, indent=2)

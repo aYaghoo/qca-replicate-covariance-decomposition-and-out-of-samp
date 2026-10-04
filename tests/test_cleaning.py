@@ -1,9 +1,9 @@
 """Tests for src/cleaning.py — realized covariance matrix cleaning."""
 
-import numpy as np
-import pytest
 import sys
 from pathlib import Path
+
+import numpy as np
 
 sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
 from src.cleaning import clean_covariance_matrices
@@ -23,6 +23,7 @@ def make_sigma_list(T: int = 50, n: int = 5, seed: int = 0) -> list:
 # ──────────────────────────────────────────────────────────────────────────────
 # Basic output structure
 # ──────────────────────────────────────────────────────────────────────────────
+
 
 def test_clean_returns_correct_length():
     """Output list has same length as input."""
@@ -95,8 +96,9 @@ def test_unflagged_matrices_unchanged():
     cleaned, flags = clean_covariance_matrices(Sigma_list)
     for t, (orig, cln, flag) in enumerate(zip(Sigma_list, cleaned, flags)):
         if not flag:
-            np.testing.assert_array_equal(orig, cln,
-                err_msg=f"Unflagged matrix at t={t} was modified")
+            np.testing.assert_array_equal(
+                orig, cln, err_msg=f"Unflagged matrix at t={t} was modified"
+            )
 
 
 def test_single_matrix_input():

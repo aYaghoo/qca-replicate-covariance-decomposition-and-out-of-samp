@@ -1,14 +1,15 @@
+from typing import Optional
+
 import numpy as np
-from typing import List, Dict, Tuple, Optional
 
-from .utils import vech, vech_to_matrix, safe_logm, safe_expm, nearest_psd
-from .decomposition import decompose_covariance, extract_sector_blocks, assemble_from_sector_blocks
-from .lasso_har import fit_har_lasso_equation, har_design_matrix, lasso_bic, adaptive_lasso_bic
-
+from .decomposition import decompose_covariance
+from .lasso_har import adaptive_lasso_bic, lasso_bic
+from .utils import nearest_psd, safe_expm, safe_logm, vech, vech_to_matrix
 
 # ---------------------------------------------------------------------------
 # Pre-computed HAR feature cache (eliminates repeated logm calls)
 # ---------------------------------------------------------------------------
+
 
 class _HARCache:
     """O(1) rolling-mean access via pre-computed cumulative sums.
@@ -23,14 +24,12 @@ class _HARCache:
 
         # Vectorise: compute all log-matrices (or plain matrices) at once
         if use_log:
-            vech_mat = np.array([
-                vech(safe_logm(Sigma_f_arr[t]).real) for t in range(T)
-            ])  # (T, M)
+            vech_mat = np.array([vech(safe_logm(Sigma_f_arr[t]).real) for t in range(T)])  # (T, M)
         else:
             tril_r, tril_c = np.tril_indices(K)
             vech_mat = Sigma_f_arr[:, tril_r, tril_c]  # (T, M) – no loop
 
-        self.vech_mat = vech_mat          # (T, M)
+        self.vech_mat = vech_mat  # (T, M)
         self.cumsum = np.cumsum(vech_mat, axis=0)  # (T, M) prefix sums
         self.T = T
         self.M = M
@@ -55,26 +54,25 @@ class _HARCache:
         Regression target is Sigma_f_t; regressors use t-1 lags per paper.
         """
         v_day = self.vech_mat[t - 1] if t >= 1 else np.zeros(self.M)
-        v_week = self.rolling_mean(t, 5)    # mean of [t-5 … t-1]
+        v_week = self.rolling_mean(t, 5)  # mean of [t-5 … t-1]
         v_month = self.rolling_mean(t, 22)  # mean of [t-22 … t-1]
         return np.concatenate([[1.0], v_day, v_week, v_month])
 
     # ------------------------------------------------------------------
-    def build_design_matrix(
-        self, t_first: int, t_last: int
-    ) -> Tuple[np.ndarray, np.ndarray]:
+    def build_design_matrix(self, t_first: int, t_last: int) -> tuple[np.ndarray, np.ndarray]:
         """Build Z (T_reg, 1+3M) and Y (T_reg, M) for the training window."""
         T_reg = t_last - t_first + 1
         Z = np.zeros((T_reg, 1 + 3 * self.M))
         for i, t in enumerate(range(t_first, t_last + 1)):
             Z[i] = self.har_row(t)
-        Y = self.vech_mat[t_first: t_last + 1]  # (T_reg, M)
+        Y = self.vech_mat[t_first : t_last + 1]  # (T_reg, M)
         return Z, Y
 
 
 # ---------------------------------------------------------------------------
 # Public API: build_factor_cov_har_matrix (kept for test compatibility)
 # ---------------------------------------------------------------------------
+
 
 def build_factor_cov_har_matrix(
     Sigma_f_series: np.ndarray,
@@ -92,7 +90,7 @@ def build_factor_cov_har_matrix(
     t              : time index for regressor construction (predicts t+1)
     use_log        : if True, work in matrix-log space
 
-    Returns
+    Returns:
     -------
     row : (1 + 3*M,) regressor row, M = K(K+1)/2
     """
@@ -103,6 +101,7 @@ def build_factor_cov_har_matrix(
 # ---------------------------------------------------------------------------
 # Factor covariance forecasting
 # ---------------------------------------------------------------------------
+
 
 def forecast_factor_covariance(
     Sigma_f_series: np.ndarray,
@@ -127,7 +126,7 @@ def forecast_factor_covariance(
     n_alphas       : number of alpha values for lambda grid
     _cache         : pre-built _HARCache (avoids rebuilding per OOS step)
 
-    Returns
+    Returns:
     -------
     Sigma_f_hat : (K, K) forecast factor covariance matrix
     """
@@ -173,6 +172,7 @@ def forecast_factor_covariance(
 # Beta forecasting
 # ---------------------------------------------------------------------------
 
+
 def _build_har_matrix_1d(series: np.ndarray, t_first: int, t_last: int) -> np.ndarray:
     """Build (T_reg, 4) HAR design matrix [1, day, week, month] for a 1-D series.
 
@@ -183,7 +183,7 @@ def _build_har_matrix_1d(series: np.ndarray, t_first: int, t_last: int) -> np.nd
     cs = np.cumsum(series)
 
     def _roll(t: int, w: int) -> float:
-        end = t           # exclusive end = t; includes [t-w, t-1]
+        end = t  # exclusive end = t; includes [t-w, t-1]
         start = max(0, end - w)
         n = end - start
         if n == 0:
@@ -196,7 +196,7 @@ def _build_har_matrix_1d(series: np.ndarray, t_first: int, t_last: int) -> np.nd
     Z[:, 0] = 1.0
     Z[:, 1] = series[ts - 1]  # day lag: series[t-1]
     for j, t in enumerate(ts):
-        Z[j, 2] = _roll(t, 5)   # week mean
+        Z[j, 2] = _roll(t, 5)  # week mean
         Z[j, 3] = _roll(t, 22)  # month mean
     return Z
 
@@ -220,7 +220,7 @@ def forecast_betas(
     train_start: start of rolling window
     train_end  : end of rolling window (inclusive)
 
-    Returns
+    Returns:
     -------
     B_hat : (K, N) forecast beta matrix
     """
@@ -253,7 +253,7 @@ def forecast_betas(
     for col in range(K * N):
         series = B_flat[:, col]
         Z = _build_har_matrix_1d(series, t_first, t_last)
-        y = series[t_first: t_last + 1]
+        y = series[t_first : t_last + 1]
 
         try:
             coef, _, _, _ = np.linalg.lstsq(Z, y, rcond=None)
@@ -270,9 +270,10 @@ def forecast_betas(
 # Residual block forecasting
 # ---------------------------------------------------------------------------
 
+
 def forecast_residual_blocks(
     Sigma_e_series: np.ndarray,
-    sector_indices: List[np.ndarray],
+    sector_indices: list[np.ndarray],
     train_start: int,
     train_end: int,
     use_adaptive: bool = False,
@@ -294,7 +295,7 @@ def forecast_residual_blocks(
     use_adaptive    : use adaptive LASSO
     n_alphas        : number of alpha values
 
-    Returns
+    Returns:
     -------
     Sigma_e_hat : (N, N) block-diagonal residual covariance forecast
     """
@@ -314,7 +315,7 @@ def forecast_residual_blocks(
         # Vectorised extraction: (T_total, Ms) response and (T_total-1, ns) regressors
         blocks = Sigma_e_series[:, sector_idx[:, None], sector_idx[None, :]]  # (T, ns, ns)
 
-        Y_s = blocks[t_first: t_last + 1, tril_r, tril_c]   # (T_reg, Ms)
+        Y_s = blocks[t_first : t_last + 1, tril_r, tril_c]  # (T_reg, Ms)
         X_s = np.array([np.diag(blocks[t - 1]) for t in range(t_first, t_last + 1)])  # (T_reg, ns)
         x_pred = np.diag(blocks[train_end])  # lag for t+1
 
@@ -323,7 +324,9 @@ def forecast_residual_blocks(
             y_m = Y_s[:, m]
             coef, intercept, _ = lasso_bic(X_s, y_m, n_alphas=n_alphas)
             if use_adaptive:
-                coef, intercept, _ = adaptive_lasso_bic(X_s, y_m, initial_coef=coef, n_alphas=n_alphas)
+                coef, intercept, _ = adaptive_lasso_bic(
+                    X_s, y_m, initial_coef=coef, n_alphas=n_alphas
+                )
             pred_vech_s[m] = intercept + x_pred @ coef
 
         block_hat = np.zeros((ns, ns))
@@ -339,17 +342,18 @@ def forecast_residual_blocks(
 # Rolling-window pipeline
 # ---------------------------------------------------------------------------
 
+
 def rolling_forecast_pipeline(
-    Sigma_list: List[np.ndarray],
+    Sigma_list: list[np.ndarray],
     W_t: np.ndarray,
-    sector_indices: List[np.ndarray],
+    sector_indices: list[np.ndarray],
     K: int,
     rolling_window: int = 1000,
     use_log: bool = False,
     use_adaptive: bool = False,
     n_alphas: int = 20,
     verbose: bool = True,
-) -> Dict:
+) -> dict:
     """Full rolling-window one-step-ahead covariance forecasting pipeline.
 
     At each forecast origin t:
@@ -372,7 +376,7 @@ def rolling_forecast_pipeline(
     n_alphas      : lambda grid size
     verbose       : log progress every 50 steps
 
-    Returns
+    Returns:
     -------
     dict with keys:
       Sigma_hat_list   – list of T_oos (N, N) full forecasts
@@ -413,34 +417,42 @@ def rolling_forecast_pipeline(
     if verbose:
         print(f"Running {n_oos} rolling forecasts (t={t_oos_start} … {t_oos_end})")
 
-    Sigma_hat_list: List[np.ndarray] = []
-    Sigma_f_hat_list: List[np.ndarray] = []
-    B_hat_list: List[np.ndarray] = []
-    Sigma_e_hat_list: List[np.ndarray] = []
-    l2_errors: List[float] = []
-    l2_factor_errors: List[float] = []
+    Sigma_hat_list: list[np.ndarray] = []
+    Sigma_f_hat_list: list[np.ndarray] = []
+    B_hat_list: list[np.ndarray] = []
+    Sigma_e_hat_list: list[np.ndarray] = []
+    l2_errors: list[float] = []
+    l2_factor_errors: list[float] = []
 
     for step, t_pred in enumerate(range(t_oos_start, t_oos_end + 1)):
         train_end = t_pred - 1
         train_start = max(0, train_end - rolling_window - 22 + 1)
 
         if verbose and step % 50 == 0:
-            print(f"  step {step+1}/{n_oos}: forecasting t={t_pred}")
+            print(f"  step {step + 1}/{n_oos}: forecasting t={t_pred}")
 
         try:
             # 2a. Factor covariance (uses pre-built cache – no redundant logm)
             Sigma_f_hat = forecast_factor_covariance(
-                Sigma_f_arr, train_start, train_end,
-                use_log=use_log, use_adaptive=use_adaptive,
-                n_alphas=n_alphas, _cache=har_cache,
+                Sigma_f_arr,
+                train_start,
+                train_end,
+                use_log=use_log,
+                use_adaptive=use_adaptive,
+                n_alphas=n_alphas,
+                _cache=har_cache,
             )
             # 2b. Betas
             B_hat = forecast_betas(B_arr, train_start, train_end)
 
             # 2c. Residual blocks
             Sigma_e_hat = forecast_residual_blocks(
-                Sigma_e_arr, sector_indices, train_start, train_end,
-                use_adaptive=use_adaptive, n_alphas=n_alphas,
+                Sigma_e_arr,
+                sector_indices,
+                train_start,
+                train_end,
+                use_adaptive=use_adaptive,
+                n_alphas=n_alphas,
             )
 
             # 2d. Recombine
@@ -464,9 +476,7 @@ def rolling_forecast_pipeline(
         # ── L2 errors ──────────────────────────────────────────────────────
         Sigma_true = Sigma_list[t_pred]
         l2_errors.append(float(np.linalg.norm(vech(Sigma_hat - Sigma_true))))
-        l2_factor_errors.append(
-            float(np.linalg.norm(vech(Sigma_f_hat - Sigma_f_arr[t_pred])))
-        )
+        l2_factor_errors.append(float(np.linalg.norm(vech(Sigma_f_hat - Sigma_f_arr[t_pred]))))
 
     return {
         "Sigma_hat_list": Sigma_hat_list,

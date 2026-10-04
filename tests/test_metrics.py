@@ -1,16 +1,17 @@
 """Tests for src/metrics.py — forecast evaluation and portfolio performance metrics."""
 
-import numpy as np
-import pytest
 import sys
 from pathlib import Path
+
+import numpy as np
+import pytest
 
 sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
 from src.metrics import (
     average_l2_forecast_error,
-    random_walk_forecast,
     compute_portfolio_metrics,
     lower_partial_std,
+    random_walk_forecast,
 )
 from src.utils import vech
 
@@ -25,6 +26,7 @@ def make_psd(n: int = 5, seed: int = 0) -> np.ndarray:
 # ──────────────────────────────────────────────────────────────────────────────
 # average_l2_forecast_error tests
 # ──────────────────────────────────────────────────────────────────────────────
+
 
 def test_l2_error_identical_forecasts():
     """Perfect forecasts produce zero average L2 error."""
@@ -46,9 +48,9 @@ def test_l2_error_non_negative():
 def test_l2_error_known_value():
     """L2 error equals expected value for a known pair."""
     n = 3
-    A = np.eye(n)          # forecast
-    B = 2 * np.eye(n)      # actual: differs by eye(n)
-    diff = A - B           # = -eye(n)
+    A = np.eye(n)  # forecast
+    B = 2 * np.eye(n)  # actual: differs by eye(n)
+    diff = A - B  # = -eye(n)
     expected = float(np.linalg.norm(vech(diff)))
     err = average_l2_forecast_error([A], [B])
     assert err == pytest.approx(expected, rel=1e-10)
@@ -83,6 +85,7 @@ def test_l2_error_length_mismatch_raises():
 # random_walk_forecast tests
 # ──────────────────────────────────────────────────────────────────────────────
 
+
 def test_rw_forecast_length():
     """Random walk forecast list has T - t_oos_start elements."""
     T, t_start = 50, 30
@@ -112,6 +115,7 @@ def test_rw_forecast_shape_consistency():
 # ──────────────────────────────────────────────────────────────────────────────
 # lower_partial_std tests
 # ──────────────────────────────────────────────────────────────────────────────
+
 
 def test_lower_partial_std_all_positive():
     """If all returns are positive, lower partial std is 0."""
@@ -150,6 +154,7 @@ def test_lower_partial_std_uses_centered():
 # compute_portfolio_metrics tests
 # ──────────────────────────────────────────────────────────────────────────────
 
+
 def make_returns_and_weights(T: int = 50, N: int = 10, seed: int = 0):
     rng = np.random.default_rng(seed)
     returns = rng.standard_normal((T, N)) * 0.01
@@ -162,9 +167,17 @@ def make_returns_and_weights(T: int = 50, N: int = 10, seed: int = 0):
 def test_metrics_output_keys():
     """compute_portfolio_metrics returns all required metric keys."""
     required = {
-        "std_ann", "lpstd_ann", "excess_kurtosis", "skewness",
-        "avg_diversification_ratio", "avg_max_weight", "avg_min_weight",
-        "avg_gross_leverage", "prop_negative", "avg_turnover", "port_returns",
+        "std_ann",
+        "lpstd_ann",
+        "excess_kurtosis",
+        "skewness",
+        "avg_diversification_ratio",
+        "avg_max_weight",
+        "avg_min_weight",
+        "avg_gross_leverage",
+        "prop_negative",
+        "avg_turnover",
+        "port_returns",
     }
     returns, W, Sigma_list = make_returns_and_weights()
     port_returns = np.sum(returns * W, axis=1)

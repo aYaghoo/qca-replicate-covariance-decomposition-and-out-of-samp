@@ -1,5 +1,4 @@
 import numpy as np
-from typing import Tuple, List
 
 
 def vech(M: np.ndarray) -> np.ndarray:
@@ -29,6 +28,7 @@ def nearest_psd(M: np.ndarray, epsilon: float = 1e-8) -> np.ndarray:
 def safe_logm(M: np.ndarray) -> np.ndarray:
     """Compute matrix logarithm with PSD projection for numerical stability."""
     from scipy.linalg import logm
+
     M_psd = nearest_psd(M)
     return logm(M_psd)
 
@@ -36,6 +36,7 @@ def safe_logm(M: np.ndarray) -> np.ndarray:
 def safe_expm(M: np.ndarray) -> np.ndarray:
     """Compute matrix exponential."""
     from scipy.linalg import expm
+
     return expm(M)
 
 
@@ -52,6 +53,6 @@ def har_regressors(
     Returns row vector of HAR regressors (scalar case).
     """
     x_day = series[t - day_lag]
-    x_week = np.mean(series[t - week_lag:t])
-    x_month = np.mean(series[t - month_lag:t])
+    x_week = np.mean(series[t - week_lag : t])
+    x_month = np.mean(series[t - month_lag : t])
     return np.array([1.0, x_day, x_week, x_month])

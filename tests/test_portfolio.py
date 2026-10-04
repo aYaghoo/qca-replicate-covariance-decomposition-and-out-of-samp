@@ -1,16 +1,15 @@
 """Tests for src/portfolio.py — minimum-variance portfolio optimization."""
 
-import numpy as np
-import pytest
 import sys
 from pathlib import Path
 
+import numpy as np
+
 sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
 from src.portfolio import (
-    min_variance_unconstrained,
-    min_variance_restricted,
     min_variance_long_only,
-    compute_portfolio_metrics,
+    min_variance_restricted,
+    min_variance_unconstrained,
     run_portfolio_experiment,
 )
 
@@ -28,6 +27,7 @@ def make_psd(n: int = 10, seed: int = 0) -> np.ndarray:
 # ──────────────────────────────────────────────────────────────────────────────
 # Unconstrained min-variance
 # ──────────────────────────────────────────────────────────────────────────────
+
 
 def test_unconstrained_weights_sum_to_one():
     """Unconstrained weights sum to 1."""
@@ -67,6 +67,7 @@ def test_unconstrained_different_sizes():
 # Restricted min-variance (short leverage ≤ 30%, |w_i| ≤ 20%)
 # ──────────────────────────────────────────────────────────────────────────────
 
+
 def test_restricted_weights_sum_to_one():
     """Restricted weights sum to 1."""
     N = 10
@@ -80,8 +81,9 @@ def test_restricted_max_weight_constraint():
     N = 15
     Sigma = make_psd(N)
     w = min_variance_restricted(Sigma, short_leverage_cap=SHORT_CAP, max_weight=MAX_W)
-    assert np.all(np.abs(w) <= MAX_W + 1e-4), \
+    assert np.all(np.abs(w) <= MAX_W + 1e-4), (
         f"Max |w_i| = {np.max(np.abs(w)):.4f} exceeds cap {MAX_W}"
+    )
 
 
 def test_restricted_short_leverage_constraint():
@@ -90,8 +92,9 @@ def test_restricted_short_leverage_constraint():
     Sigma = make_psd(N)
     w = min_variance_restricted(Sigma, short_leverage_cap=SHORT_CAP, max_weight=MAX_W)
     short_leverage = float(np.sum(np.abs(w[w < 0])))
-    assert short_leverage <= SHORT_CAP + 1e-4, \
+    assert short_leverage <= SHORT_CAP + 1e-4, (
         f"Short leverage {short_leverage:.4f} exceeds cap {SHORT_CAP}"
+    )
 
 
 def test_restricted_portfolio_shape():
@@ -114,6 +117,7 @@ def test_restricted_variance_feasible():
 # ──────────────────────────────────────────────────────────────────────────────
 # Long-only min-variance (0 ≤ w_i ≤ 20%)
 # ──────────────────────────────────────────────────────────────────────────────
+
 
 def test_long_only_weights_sum_to_one():
     """Long-only weights sum to 1."""
@@ -163,6 +167,7 @@ def test_long_only_variance_minimal_vs_equal():
 # run_portfolio_experiment integration tests
 # ──────────────────────────────────────────────────────────────────────────────
 
+
 def make_forecast_series(T_oos: int = 30, N: int = 10, seed: int = 0):
     """Generate list of T_oos forecast covariance matrices and returns."""
     Sigma_hat_list = [make_psd(N, seed + t) for t in range(T_oos)]
@@ -176,8 +181,11 @@ def test_run_portfolio_experiment_returns_length():
     T_oos, N = 20, 10
     Sigma_hat_list, returns = make_forecast_series(T_oos, N)
     res = run_portfolio_experiment(
-        Sigma_hat_list, returns, constraint_type="unconstrained",
-        short_leverage_cap=SHORT_CAP, max_weight=MAX_W,
+        Sigma_hat_list,
+        returns,
+        constraint_type="unconstrained",
+        short_leverage_cap=SHORT_CAP,
+        max_weight=MAX_W,
     )
     assert len(res["metrics"]["port_returns"]) == T_oos
 
@@ -187,8 +195,11 @@ def test_run_portfolio_experiment_weights_shape():
     T_oos, N = 20, 10
     Sigma_hat_list, returns = make_forecast_series(T_oos, N)
     res = run_portfolio_experiment(
-        Sigma_hat_list, returns, constraint_type="long_only",
-        short_leverage_cap=SHORT_CAP, max_weight=MAX_W,
+        Sigma_hat_list,
+        returns,
+        constraint_type="long_only",
+        short_leverage_cap=SHORT_CAP,
+        max_weight=MAX_W,
     )
     assert res["weights"].shape == (T_oos, N)
 
@@ -199,8 +210,11 @@ def test_run_portfolio_experiment_all_constraints():
     Sigma_hat_list, returns = make_forecast_series(T_oos, N)
     for ctype in ["unconstrained", "restricted", "long_only"]:
         res = run_portfolio_experiment(
-            Sigma_hat_list, returns, constraint_type=ctype,
-            short_leverage_cap=SHORT_CAP, max_weight=MAX_W,
+            Sigma_hat_list,
+            returns,
+            constraint_type=ctype,
+            short_leverage_cap=SHORT_CAP,
+            max_weight=MAX_W,
         )
         assert "metrics" in res, f"No metrics for {ctype}"
         assert "port_returns" in res["metrics"]
@@ -212,8 +226,11 @@ def test_run_portfolio_std_positive():
     Sigma_hat_list, returns = make_forecast_series(T_oos, N, seed=13)
     for ctype in ["unconstrained", "restricted", "long_only"]:
         res = run_portfolio_experiment(
-            Sigma_hat_list, returns, constraint_type=ctype,
-            short_leverage_cap=SHORT_CAP, max_weight=MAX_W,
+            Sigma_hat_list,
+            returns,
+            constraint_type=ctype,
+            short_leverage_cap=SHORT_CAP,
+            max_weight=MAX_W,
         )
         std = res["metrics"]["std_ann"]
         assert std >= 0.0, f"Non-positive std for {ctype}: {std}"
@@ -222,15 +239,26 @@ def test_run_portfolio_std_positive():
 def test_run_portfolio_metrics_keys():
     """Portfolio metrics dictionary contains all required keys."""
     required_keys = {
-        "std_ann", "lpstd_ann", "excess_kurtosis", "skewness",
-        "avg_diversification_ratio", "avg_max_weight", "avg_min_weight",
-        "avg_gross_leverage", "prop_negative", "avg_turnover", "port_returns",
+        "std_ann",
+        "lpstd_ann",
+        "excess_kurtosis",
+        "skewness",
+        "avg_diversification_ratio",
+        "avg_max_weight",
+        "avg_min_weight",
+        "avg_gross_leverage",
+        "prop_negative",
+        "avg_turnover",
+        "port_returns",
     }
     T_oos, N = 20, 10
     Sigma_hat_list, returns = make_forecast_series(T_oos, N)
     res = run_portfolio_experiment(
-        Sigma_hat_list, returns, constraint_type="restricted",
-        short_leverage_cap=SHORT_CAP, max_weight=MAX_W,
+        Sigma_hat_list,
+        returns,
+        constraint_type="restricted",
+        short_leverage_cap=SHORT_CAP,
+        max_weight=MAX_W,
     )
     for key in required_keys:
         assert key in res["metrics"], f"Missing metric: {key}"
@@ -241,8 +269,11 @@ def test_turnover_non_negative():
     T_oos, N = 25, 10
     Sigma_hat_list, returns = make_forecast_series(T_oos, N, seed=7)
     res = run_portfolio_experiment(
-        Sigma_hat_list, returns, constraint_type="long_only",
-        short_leverage_cap=SHORT_CAP, max_weight=MAX_W,
+        Sigma_hat_list,
+        returns,
+        constraint_type="long_only",
+        short_leverage_cap=SHORT_CAP,
+        max_weight=MAX_W,
     )
     assert res["metrics"]["avg_turnover"] >= 0.0
 
@@ -252,8 +283,11 @@ def test_diversification_ratio_positive():
     T_oos, N = 20, 10
     Sigma_hat_list, returns = make_forecast_series(T_oos, N)
     res = run_portfolio_experiment(
-        Sigma_hat_list, returns, constraint_type="long_only",
-        short_leverage_cap=SHORT_CAP, max_weight=MAX_W,
+        Sigma_hat_list,
+        returns,
+        constraint_type="long_only",
+        short_leverage_cap=SHORT_CAP,
+        max_weight=MAX_W,
     )
     assert res["metrics"]["avg_diversification_ratio"] > 0.0
 
@@ -263,10 +297,14 @@ def test_restricted_gross_leverage_bounded():
     T_oos, N = 20, 10
     Sigma_hat_list, returns = make_forecast_series(T_oos, N, seed=3)
     res = run_portfolio_experiment(
-        Sigma_hat_list, returns, constraint_type="restricted",
-        short_leverage_cap=SHORT_CAP, max_weight=MAX_W,
+        Sigma_hat_list,
+        returns,
+        constraint_type="restricted",
+        short_leverage_cap=SHORT_CAP,
+        max_weight=MAX_W,
     )
     avg_gl = res["metrics"]["avg_gross_leverage"]
     # Gross leverage = sum |w_i|; long positions sum >= 1-0.3=0.7, short <= 0.3 → total ≤ 1.6
-    assert avg_gl <= 1.0 + SHORT_CAP + 1e-3, \
-        f"Gross leverage {avg_gl:.4f} exceeds expected max {1+SHORT_CAP}"
+    assert avg_gl <= 1.0 + SHORT_CAP + 1e-3, (
+        f"Gross leverage {avg_gl:.4f} exceeds expected max {1 + SHORT_CAP}"
+    )

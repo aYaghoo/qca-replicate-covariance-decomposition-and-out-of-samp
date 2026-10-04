@@ -1,6 +1,5 @@
 import numpy as np
 from sklearn.linear_model import Lasso
-from typing import Tuple, Optional
 
 
 def bic_score(y: np.ndarray, y_hat: np.ndarray, n_nonzero: int) -> float:
@@ -14,13 +13,13 @@ def bic_score(y: np.ndarray, y_hat: np.ndarray, n_nonzero: int) -> float:
     y_hat: (T,) predicted values
     n_nonzero: number of non-zero coefficients (excluding intercept)
 
-    Returns
+    Returns:
     -------
     bic: scalar BIC value (lower is better)
     """
     T = len(y)
     residuals = y - y_hat
-    rss = np.sum(residuals ** 2)
+    rss = np.sum(residuals**2)
     if rss <= 0:
         rss = 1e-300
     bic = T * np.log(rss / T) + n_nonzero * np.log(T)
@@ -33,7 +32,7 @@ def lasso_bic(
     n_alphas: int = 30,
     alpha_min_ratio: float = 1e-4,
     standardize: bool = True,
-) -> Tuple[np.ndarray, float, float]:
+) -> tuple[np.ndarray, float, float]:
     """Fit LASSO with BIC-selected lambda.
 
     Objective: (1/T)||y - Z gamma||^2 + 2 * lambda * ||beta||_1
@@ -47,7 +46,7 @@ def lasso_bic(
     alpha_min_ratio: ratio of lambda_min to lambda_max
     standardize: whether to standardize predictors
 
-    Returns
+    Returns:
     -------
     coef: (p,) estimated coefficients
     intercept: scalar intercept
@@ -119,7 +118,7 @@ def adaptive_lasso_bic(
     n_alphas: int = 30,
     alpha_min_ratio: float = 1e-4,
     standardize: bool = True,
-) -> Tuple[np.ndarray, float, float]:
+) -> tuple[np.ndarray, float, float]:
     """Adaptive LASSO with BIC-selected lambda.
 
     Uses initial LASSO coefficients as adaptive weights.
@@ -135,7 +134,7 @@ def adaptive_lasso_bic(
     alpha_min_ratio: ratio of lambda_min to lambda_max
     standardize: whether to standardize predictors
 
-    Returns
+    Returns:
     -------
     coef: (p,) adaptive LASSO coefficients
     intercept: scalar
@@ -173,13 +172,13 @@ def har_design_matrix(
     t: current time index (0-based, predicting t from t-1)
     window: rolling estimation window size
 
-    Returns
+    Returns:
     -------
     row: (1 + 3*M,) regressor vector
     """
-    day_lag = series_2d[t - 1, :]                              # (M,)
-    week_lag = series_2d[max(0, t - 5):t, :].mean(axis=0)     # (M,)
-    month_lag = series_2d[max(0, t - 22):t, :].mean(axis=0)   # (M,)
+    day_lag = series_2d[t - 1, :]  # (M,)
+    week_lag = series_2d[max(0, t - 5) : t, :].mean(axis=0)  # (M,)
+    month_lag = series_2d[max(0, t - 22) : t, :].mean(axis=0)  # (M,)
     row = np.concatenate([[1.0], day_lag, week_lag, month_lag])
     return row
 
@@ -189,7 +188,7 @@ def fit_har_lasso_equation(
     y_i: np.ndarray,
     use_adaptive: bool = False,
     n_alphas: int = 30,
-) -> Tuple[np.ndarray, float]:
+) -> tuple[np.ndarray, float]:
     """Fit a single HAR equation with LASSO or adaptive LASSO.
 
     Parameters
@@ -199,7 +198,7 @@ def fit_har_lasso_equation(
     use_adaptive: if True, run two-stage adaptive LASSO
     n_alphas: number of alpha values in grid
 
-    Returns
+    Returns:
     -------
     coef: (1 + 3*M,) coefficient vector [intercept, slopes]
     intercept: scalar (already embedded in coef[0])

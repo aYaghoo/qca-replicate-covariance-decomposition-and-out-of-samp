@@ -1,6 +1,5 @@
-import numpy as np
 import cvxpy as cp
-from typing import List, Dict, Tuple, Optional
+import numpy as np
 
 from .utils import nearest_psd
 
@@ -19,7 +18,7 @@ def min_variance_unconstrained(
     Sigma: (N, N) covariance matrix
     eps: ridge regularization for inversion
 
-    Returns
+    Returns:
     -------
     w: (N,) portfolio weights
     """
@@ -55,7 +54,7 @@ def min_variance_restricted(
     max_weight: maximum absolute position in any single stock
     eps: regularization for PSD projection
 
-    Returns
+    Returns:
     -------
     w: (N,) portfolio weights
     """
@@ -68,15 +67,15 @@ def min_variance_restricted(
 
     objective = cp.Minimize(cp.quad_form(w, Sigma_psd))
     constraints = [
-        cp.sum(w_plus - w_minus) == 1,           # budget constraint
-        cp.sum(w_minus) <= short_leverage_cap,    # short leverage cap
-        w_plus + w_minus <= max_weight,           # absolute weight cap
+        cp.sum(w_plus - w_minus) == 1,  # budget constraint
+        cp.sum(w_minus) <= short_leverage_cap,  # short leverage cap
+        w_plus + w_minus <= max_weight,  # absolute weight cap
     ]
 
     prob = cp.Problem(objective, constraints)
     try:
         prob.solve(solver=cp.CLARABEL, verbose=False)
-        if prob.status in ['optimal', 'optimal_inaccurate'] and w.value is not None:
+        if prob.status in ["optimal", "optimal_inaccurate"] and w.value is not None:
             return w.value
     except Exception:
         pass
@@ -100,7 +99,7 @@ def min_variance_long_only(
     max_weight: maximum weight per asset
     eps: regularization
 
-    Returns
+    Returns:
     -------
     w: (N,) portfolio weights
     """
@@ -117,7 +116,7 @@ def min_variance_long_only(
     prob = cp.Problem(objective, constraints)
     try:
         prob.solve(solver=cp.CLARABEL, verbose=False)
-        if prob.status in ['optimal', 'optimal_inaccurate'] and w.value is not None:
+        if prob.status in ["optimal", "optimal_inaccurate"] and w.value is not None:
             return np.maximum(w.value, 0)
     except Exception:
         pass
@@ -128,8 +127,8 @@ def min_variance_long_only(
 def compute_portfolio_metrics(
     weights_history: np.ndarray,
     returns: np.ndarray,
-    Sigma_hat_list: List[np.ndarray],
-) -> Dict:
+    Sigma_hat_list: list[np.ndarray],
+) -> dict:
     """Compute portfolio performance metrics per paper specification.
 
     Parameters
@@ -138,7 +137,7 @@ def compute_portfolio_metrics(
     returns: (T_oos, N) realized stock returns
     Sigma_hat_list: list of T_oos (N, N) forecast covariance matrices
 
-    Returns
+    Returns:
     -------
     dict with performance metrics:
       std: ex-post realized standard deviation
@@ -204,29 +203,29 @@ def compute_portfolio_metrics(
     avg_turnover = np.mean(turnovers) if turnovers else 0.0
 
     return {
-        'std': std,
-        'std_ann': std_ann,
-        'lpstd': lpstd,
-        'lpstd_ann': lpstd_ann,
-        'excess_kurtosis': excess_kurtosis,
-        'skewness': skewness,
-        'avg_diversification_ratio': avg_div_ratio,
-        'avg_max_weight': avg_max_weight,
-        'avg_min_weight': avg_min_weight,
-        'avg_gross_leverage': avg_gross_leverage,
-        'prop_negative': prop_negative,
-        'avg_turnover': avg_turnover,
-        'port_returns': port_returns,
+        "std": std,
+        "std_ann": std_ann,
+        "lpstd": lpstd,
+        "lpstd_ann": lpstd_ann,
+        "excess_kurtosis": excess_kurtosis,
+        "skewness": skewness,
+        "avg_diversification_ratio": avg_div_ratio,
+        "avg_max_weight": avg_max_weight,
+        "avg_min_weight": avg_min_weight,
+        "avg_gross_leverage": avg_gross_leverage,
+        "prop_negative": prop_negative,
+        "avg_turnover": avg_turnover,
+        "port_returns": port_returns,
     }
 
 
 def run_portfolio_experiment(
-    Sigma_hat_list: List[np.ndarray],
+    Sigma_hat_list: list[np.ndarray],
     returns: np.ndarray,
-    constraint_type: str = 'unconstrained',
+    constraint_type: str = "unconstrained",
     short_leverage_cap: float = 0.30,
     max_weight: float = 0.20,
-) -> Dict:
+) -> dict:
     """Run full portfolio experiment for a given constraint regime.
 
     Parameters
@@ -237,7 +236,7 @@ def run_portfolio_experiment(
     short_leverage_cap: for restricted
     max_weight: for restricted and long_only
 
-    Returns
+    Returns:
     -------
     dict with weights, metrics, and returns
     """
@@ -246,11 +245,11 @@ def run_portfolio_experiment(
     weights_history = np.zeros((T_oos, N))
 
     for t, Sigma_hat in enumerate(Sigma_hat_list):
-        if constraint_type == 'unconstrained':
+        if constraint_type == "unconstrained":
             w = min_variance_unconstrained(Sigma_hat)
-        elif constraint_type == 'restricted':
+        elif constraint_type == "restricted":
             w = min_variance_restricted(Sigma_hat, short_leverage_cap, max_weight)
-        elif constraint_type == 'long_only':
+        elif constraint_type == "long_only":
             w = min_variance_long_only(Sigma_hat, max_weight)
         else:
             raise ValueError(f"Unknown constraint_type: {constraint_type}")
@@ -259,7 +258,7 @@ def run_portfolio_experiment(
     metrics = compute_portfolio_metrics(weights_history, returns, Sigma_hat_list)
 
     return {
-        'weights': weights_history,
-        'constraint_type': constraint_type,
-        'metrics': metrics,
+        "weights": weights_history,
+        "constraint_type": constraint_type,
+        "metrics": metrics,
     }

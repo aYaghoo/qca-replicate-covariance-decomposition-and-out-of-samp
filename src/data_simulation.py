@@ -1,6 +1,5 @@
 import numpy as np
 import pandas as pd
-from typing import Tuple, List, Dict, Optional
 
 
 class SimulatedMarketData:
@@ -27,14 +26,14 @@ class SimulatedMarketData:
         S: int = 10,
         T: int = 1495,
         seed: int = 42,
-        M: int = 78,                 # intraday returns per day (78 = 5-min)
-        alignment: float = 0.8,      # corr between characteristic and loading, in [0, 1]
-        burn_in: int = 250,          # days simulated and discarded before t = 0
-        har_coefs: Tuple[float, float, float] = (0.35, 0.25, 0.35),  # daily, weekly, monthly
-        vol_of_vol: float = 0.20,    # sd of daily shock to log variance
-        market_vol: float = 1.0,     # median daily market-factor vol (%)
-        style_vol: float = 0.5,      # median daily vol of the long-short factors (%)
-        resid_vol: float = 1.4,      # median daily idiosyncratic vol (%)
+        M: int = 78,  # intraday returns per day (78 = 5-min)
+        alignment: float = 0.8,  # corr between characteristic and loading, in [0, 1]
+        burn_in: int = 250,  # days simulated and discarded before t = 0
+        har_coefs: tuple[float, float, float] = (0.35, 0.25, 0.35),  # daily, weekly, monthly
+        vol_of_vol: float = 0.20,  # sd of daily shock to log variance
+        market_vol: float = 1.0,  # median daily market-factor vol (%)
+        style_vol: float = 0.5,  # median daily vol of the long-short factors (%)
+        resid_vol: float = 1.4,  # median daily idiosyncratic vol (%)
         style_loading_sd: float = 0.35,  # cross-sectional SD of style-factor loadings
     ):
         if M <= N:
@@ -70,10 +69,10 @@ class SimulatedMarketData:
         self._bm_ratios = self._draw_bm_ratios()
         self._accounting = self._draw_accounting_data()
 
-        self.B_true: Optional[np.ndarray] = None
-        self.Sigma_true_list: Optional[List[np.ndarray]] = None
+        self.B_true: np.ndarray | None = None
+        self.Sigma_true_list: list[np.ndarray] | None = None
 
-    def _assign_sectors(self) -> List[int]:
+    def _assign_sectors(self) -> list[int]:
         """Assign stocks to 10 sectors with realistic sizes."""
         # Approximate the paper's sector distribution scaled to N
         paper_sizes = [31, 8, 65, 32, 61, 10, 45, 26, 36, 116]  # paper's 430 stock counts
@@ -84,7 +83,7 @@ class SimulatedMarketData:
         scaled[-1] += diff
         return scaled
 
-    def _build_sector_indices(self) -> List[np.ndarray]:
+    def _build_sector_indices(self) -> list[np.ndarray]:
         """Build index arrays for each sector."""
         indices = []
         start = 0
@@ -102,16 +101,18 @@ class SimulatedMarketData:
         r = np.argsort(np.argsort(np.asarray(x, dtype=float))).astype(float)
         return (r - r.mean()) / r.std()
 
-    def _characteristic_signals(self) -> List[np.ndarray]:
+    def _characteristic_signals(self) -> list[np.ndarray]:
         """Signals for the six non-market factors, in paper order."""
         acct = self._accounting
         return [
-            self._rank_score(np.log(self._market_caps.values)),                      # SMB
-            self._rank_score(self._bm_ratios.values),                                # HML
-            self._rank_score(acct["gross_profit"] / acct["AT"]),                     # GP
-            self._rank_score((acct["delta_PPEGT"] + acct["delta_INVT"]) / acct["AT_lag"]),  # Investment
-            self._rank_score(acct["AT"] / acct["AT_lag"]),                           # Asset growth
-            self._rank_score(acct["accruals"]),                                      # Accruals
+            self._rank_score(np.log(self._market_caps.values)),  # SMB
+            self._rank_score(self._bm_ratios.values),  # HML
+            self._rank_score(acct["gross_profit"] / acct["AT"]),  # GP
+            self._rank_score(
+                (acct["delta_PPEGT"] + acct["delta_INVT"]) / acct["AT_lag"]
+            ),  # Investment
+            self._rank_score(acct["AT"] / acct["AT_lag"]),  # Asset growth
+            self._rank_score(acct["accruals"]),  # Accruals
         ]
 
     def generate_factor_loadings(self) -> np.ndarray:
@@ -130,7 +131,7 @@ class SimulatedMarketData:
         for k in range(1, K):
             noise = self.rng.standard_normal(N)
             if k - 1 < len(signals):
-                B[k] = sd * (a * signals[k - 1] + np.sqrt(1 - a ** 2) * noise)
+                B[k] = sd * (a * signals[k - 1] + np.sqrt(1 - a**2) * noise)
             else:
                 B[k] = sd * noise  # factors beyond the paper's seven are unaligned
         return B
@@ -146,20 +147,25 @@ class SimulatedMarketData:
         x = np.full((T_total, n), mu)
         for t in range(22, T_total):
             dev_d = x[t - 1] - mu
-            dev_w = x[t - 5:t].mean(axis=0) - mu
-            dev_m = x[t - 22:t].mean(axis=0) - mu
-            x[t] = (mu + bd * dev_d + bw * dev_w + bm * dev_m
-                    + self.vol_of_vol * self.rng.standard_normal(n))
+            dev_w = x[t - 5 : t].mean(axis=0) - mu
+            dev_m = x[t - 22 : t].mean(axis=0) - mu
+            x[t] = (
+                mu
+                + bd * dev_d
+                + bw * dev_w
+                + bm * dev_m
+                + self.vol_of_vol * self.rng.standard_normal(n)
+            )
         return np.exp(x)
 
-    def _simulate_factor_covariances(self) -> List[np.ndarray]:
+    def _simulate_factor_covariances(self) -> list[np.ndarray]:
         """Simulate K x K latent factor covariances (post burn-in)."""
         K = self.K
         h = np.empty((self.T + self.burn_in, K))
-        h[:, :1] = self._simulate_log_har(1, self.market_vol ** 2)
+        h[:, :1] = self._simulate_log_har(1, self.market_vol**2)
         if K > 1:
-            h[:, 1:] = self._simulate_log_har(K - 1, self.style_vol ** 2)
-        h = h[self.burn_in:]
+            h[:, 1:] = self._simulate_log_har(K - 1, self.style_vol**2)
+        h = h[self.burn_in :]
 
         corr_f = np.eye(K) + 0.1 * (np.ones((K, K)) - np.eye(K))
         Sigma_f_list = []
@@ -168,10 +174,10 @@ class SimulatedMarketData:
             Sigma_f_list.append(D @ corr_f @ D)
         return Sigma_f_list
 
-    def _simulate_residual_covariances(self) -> List[np.ndarray]:
+    def _simulate_residual_covariances(self) -> list[np.ndarray]:
         """Simulate N x N block-diagonal latent residual covariances (post burn-in)."""
         N = self.N
-        res_var = self._simulate_log_har(N, self.resid_vol ** 2)[self.burn_in:]
+        res_var = self._simulate_log_har(N, self.resid_vol**2)[self.burn_in :]
 
         Sigma_e_list = []
         for t in range(self.T):
@@ -186,7 +192,7 @@ class SimulatedMarketData:
 
     def simulate_realized_covariances(
         self,
-    ) -> Tuple[List[np.ndarray], np.ndarray, np.ndarray]:
+    ) -> tuple[list[np.ndarray], np.ndarray, np.ndarray]:
         """Simulate T daily realized covariance matrices.
 
         Latent: Sigma_t = B.T @ Sigma_f_t @ B + Sigma_e_t.
@@ -194,7 +200,7 @@ class SimulatedMarketData:
         r_{t,j} = B' f_{t,j} + e_{t,j}, f ~ N(0, Sigma_f_t/M), e ~ N(0, Sigma_e_t/M).
         The latent matrices are stored in self.Sigma_true_list.
 
-        Returns
+        Returns:
         -------
         Sigma_list: list of T (N, N) realized covariance matrices
         factor_returns: (T, K) daily factor returns (sum of intraday)
@@ -217,7 +223,7 @@ class SimulatedMarketData:
 
             F = np.linalg.cholesky(Sigma_f_t) @ self.rng.standard_normal((K, M)) / np.sqrt(M)
             E = np.linalg.cholesky(Sigma_e_t) @ self.rng.standard_normal((N, M)) / np.sqrt(M)
-            R = B_true.T @ F + E                       # (N, M) intraday returns
+            R = B_true.T @ F + E  # (N, M) intraday returns
 
             RCov = R @ R.T
             Sigma_list.append((RCov + RCov.T) / 2)
@@ -233,42 +239,46 @@ class SimulatedMarketData:
     def _draw_accounting_data(self) -> pd.DataFrame:
         """Draw synthetic annual accounting data for all N stocks."""
         N = self.N
-        acct = pd.DataFrame({
-            'AT': self.rng.uniform(1e8, 1e10, N),
-            'AT_lag': self.rng.uniform(1e8, 1e10, N),
-            'ACT': self.rng.uniform(1e7, 5e9, N),
-            'CHE': self.rng.uniform(1e6, 1e9, N),
-            'LCT': self.rng.uniform(1e7, 3e9, N),
-            'DLC': self.rng.uniform(0, 5e8, N),
-            'TXP': self.rng.uniform(0, 3e8, N),
-            'DP': self.rng.uniform(0, 2e8, N),
-            'PPEGT': self.rng.uniform(1e7, 5e9, N),
-            'PPEGT_lag': self.rng.uniform(1e7, 5e9, N),
-            'INVT': self.rng.uniform(1e6, 2e9, N),
-            'INVT_lag': self.rng.uniform(1e6, 2e9, N),
-        })
+        acct = pd.DataFrame(
+            {
+                "AT": self.rng.uniform(1e8, 1e10, N),
+                "AT_lag": self.rng.uniform(1e8, 1e10, N),
+                "ACT": self.rng.uniform(1e7, 5e9, N),
+                "CHE": self.rng.uniform(1e6, 1e9, N),
+                "LCT": self.rng.uniform(1e7, 3e9, N),
+                "DLC": self.rng.uniform(0, 5e8, N),
+                "TXP": self.rng.uniform(0, 3e8, N),
+                "DP": self.rng.uniform(0, 2e8, N),
+                "PPEGT": self.rng.uniform(1e7, 5e9, N),
+                "PPEGT_lag": self.rng.uniform(1e7, 5e9, N),
+                "INVT": self.rng.uniform(1e6, 2e9, N),
+                "INVT_lag": self.rng.uniform(1e6, 2e9, N),
+            }
+        )
 
         # Derived fields
-        acct['gross_profit'] = acct['AT'] * self.rng.uniform(0.1, 0.4, N)
-        acct['delta_PPEGT'] = acct['PPEGT'] - acct['PPEGT_lag']
-        acct['delta_INVT'] = acct['INVT'] - acct['INVT_lag']
+        acct["gross_profit"] = acct["AT"] * self.rng.uniform(0.1, 0.4, N)
+        acct["delta_PPEGT"] = acct["PPEGT"] - acct["PPEGT_lag"]
+        acct["delta_INVT"] = acct["INVT"] - acct["INVT_lag"]
 
         # Accruals
-        delta_ACT = acct['ACT'] * 0.05
-        delta_CHE = acct['CHE'] * 0.02
-        delta_LCT = acct['LCT'] * 0.03
-        delta_DLC = acct['DLC'] * 0.01
-        delta_TXP = acct['TXP'] * 0.02
-        avg_AT = (acct['AT'] + acct['AT_lag']) / 2
-        acct['accruals'] = (delta_ACT - delta_CHE - delta_LCT + delta_DLC + delta_TXP - acct['DP']) / np.maximum(avg_AT, 1e-6)
+        delta_ACT = acct["ACT"] * 0.05
+        delta_CHE = acct["CHE"] * 0.02
+        delta_LCT = acct["LCT"] * 0.03
+        delta_DLC = acct["DLC"] * 0.01
+        delta_TXP = acct["TXP"] * 0.02
+        avg_AT = (acct["AT"] + acct["AT_lag"]) / 2
+        acct["accruals"] = (
+            delta_ACT - delta_CHE - delta_LCT + delta_DLC + delta_TXP - acct["DP"]
+        ) / np.maximum(avg_AT, 1e-6)
 
         return acct
 
     def _draw_market_caps(self) -> pd.Series:
-        return pd.Series(self.rng.uniform(1e8, 1e11, self.N), name='market_cap')
+        return pd.Series(self.rng.uniform(1e8, 1e11, self.N), name="market_cap")
 
     def _draw_bm_ratios(self) -> pd.Series:
-        return pd.Series(self.rng.uniform(0.1, 5.0, self.N), name='bm_ratio')
+        return pd.Series(self.rng.uniform(0.1, 5.0, self.N), name="bm_ratio")
 
     def generate_accounting_data(self) -> pd.DataFrame:
         """Return the cached synthetic accounting data."""

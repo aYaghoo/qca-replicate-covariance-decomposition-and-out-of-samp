@@ -1,5 +1,4 @@
-"""
-Experiment 1: Covariance Decomposition and Out-of-Sample Forecasting
+"""Experiment 1: Covariance Decomposition and Out-of-Sample Forecasting
 
 Implements the paper's factor-based decomposition and rolling one-step-ahead
 forecasting pipeline. Tests factor specifications K ∈ {1, 3, 5, 7}, LASSO vs
@@ -13,34 +12,31 @@ to achieve tractable run times. The code is fully general and scales to N=430.
 Usage: python -m exp.exp1_covariance_forecasting
 """
 
-import sys
-import os
-import time
-import logging
 import json
+import logging
+import sys
+import time
 from pathlib import Path
-from typing import Dict, List
 
+import matplotlib
 import numpy as np
 import pandas as pd
-import matplotlib
+
 matplotlib.use("Agg")
 import matplotlib.pyplot as plt
-import matplotlib.gridspec as gridspec
 import seaborn as sns
 
 # Ensure project root is on path
 sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
 
-from src.data_simulation import SimulatedMarketData
 from src.cleaning import clean_covariance_matrices
+from src.data_simulation import SimulatedMarketData
+from src.decomposition import decompose_covariance
 from src.factors import build_factor_weight_matrix
-from src.decomposition import decompose_covariance, verify_decomposition
 from src.forecasting import rolling_forecast_pipeline
 from src.metrics import (
     average_l2_forecast_error,
     random_walk_forecast,
-    compile_results_table,
 )
 from src.utils import vech
 
@@ -54,24 +50,24 @@ RESULTS_DIR.mkdir(exist_ok=True)
 # Configuration (demonstration scale — see module docstring for paper scale)
 # ──────────────────────────────────────────────────────────────────────────────
 CFG = dict(
-    N=20,               # number of stocks (paper: 430)
-    K_max=7,            # highest factor count
-    T=250,              # total days (paper: 1,495)
-    rolling_window=100, # estimation window (paper: 1,000)
-    n_alphas=3,         # lambda grid points (coarser grid for speed)
+    N=20,  # number of stocks (paper: 430)
+    K_max=7,  # highest factor count
+    T=250,  # total days (paper: 1,495)
+    rolling_window=100,  # estimation window (paper: 1,000)
+    n_alphas=3,  # lambda grid points (coarser grid for speed)
     seed=42,
 )
 
 FACTOR_SPECS = [1, 3, 5, 7]
 METHODS = [
     dict(use_log=False, use_adaptive=False, tag="LASSO"),
-    dict(use_log=False, use_adaptive=True,  tag="AdaLASSO"),
-    dict(use_log=True,  use_adaptive=False, tag="Log_LASSO"),
-    dict(use_log=True,  use_adaptive=True,  tag="Log_AdaLASSO"),
+    dict(use_log=False, use_adaptive=True, tag="AdaLASSO"),
+    dict(use_log=True, use_adaptive=False, tag="Log_LASSO"),
+    dict(use_log=True, use_adaptive=True, tag="Log_AdaLASSO"),
 ]
 
 
-def simulate_data(cfg: Dict) -> Dict:
+def simulate_data(cfg: dict) -> dict:
     """Generate all simulation inputs."""
     logger.info("Simulating market data (N=%d, T=%d)...", cfg["N"], cfg["T"])
     sim = SimulatedMarketData(N=cfg["N"], K=cfg["K_max"], S=10, T=cfg["T"], seed=cfg["seed"])
@@ -91,7 +87,7 @@ def simulate_data(cfg: Dict) -> Dict:
     )
 
 
-def clean_matrices(Sigma_list: List[np.ndarray]) -> List[np.ndarray]:
+def clean_matrices(Sigma_list: list[np.ndarray]) -> list[np.ndarray]:
     """Apply 4-sigma outlier detection and replacement (paper Section 2)."""
     logger.info("Cleaning %d covariance matrices...", len(Sigma_list))
     cleaned, flags = clean_covariance_matrices(
@@ -101,11 +97,13 @@ def clean_matrices(Sigma_list: List[np.ndarray]) -> List[np.ndarray]:
         replacement_window=10,
     )
     n_flagged = sum(flags)
-    logger.info("Flagged and replaced %d matrices (%.1f%%)", n_flagged, 100 * n_flagged / len(Sigma_list))
+    logger.info(
+        "Flagged and replaced %d matrices (%.1f%%)", n_flagged, 100 * n_flagged / len(Sigma_list)
+    )
     return cleaned
 
 
-def build_weight_matrix(K: int, data: Dict) -> np.ndarray:
+def build_weight_matrix(K: int, data: dict) -> np.ndarray:
     """Build K×N factor weight matrix using the paper's factor definitions."""
     return build_factor_weight_matrix(
         K=K,
@@ -116,7 +114,7 @@ def build_weight_matrix(K: int, data: Dict) -> np.ndarray:
 
 
 def verify_all_decompositions(
-    Sigma_list: List[np.ndarray],
+    Sigma_list: list[np.ndarray],
     W: np.ndarray,
     K: int,
     n_check: int = 20,
@@ -136,18 +134,21 @@ def verify_all_decompositions(
 
 
 def run_all_models(
-    Sigma_list: List[np.ndarray],
-    sector_indices: List[np.ndarray],
-    cfg: Dict,
-    data: Dict,
-) -> Dict:
+    Sigma_list: list[np.ndarray],
+    sector_indices: list[np.ndarray],
+    cfg: dict,
+    data: dict,
+) -> dict:
     """Run rolling forecast pipeline for all factor specs and method variants."""
     T = len(Sigma_list)
     t_oos_start = cfg["rolling_window"] + 22
     n_oos = T - t_oos_start
     logger.info(
         "Total days: %d | rolling_window: %d | OOS start: %d | n_oos: %d",
-        T, cfg["rolling_window"], t_oos_start, n_oos,
+        T,
+        cfg["rolling_window"],
+        t_oos_start,
+        n_oos,
     )
 
     results = {}
@@ -176,7 +177,10 @@ def run_all_models(
                 mean_l2_f = float(np.mean(res["l2_factor_errors"]))
                 logger.info(
                     "  %s: mean_l2=%.4f, mean_l2_factor=%.4f, elapsed=%.1fs",
-                    model_name, mean_l2, mean_l2_f, elapsed,
+                    model_name,
+                    mean_l2,
+                    mean_l2_f,
+                    elapsed,
                 )
                 results[model_name] = res
             except Exception as exc:
@@ -186,9 +190,9 @@ def run_all_models(
 
 
 def compute_random_walk_baseline(
-    Sigma_list: List[np.ndarray],
+    Sigma_list: list[np.ndarray],
     t_oos_start: int,
-) -> Dict:
+) -> dict:
     """Compute random-walk benchmark L2 errors."""
     T = len(Sigma_list)
     rw_forecasts = random_walk_forecast(Sigma_list, t_oos_start)
@@ -202,25 +206,27 @@ def compute_random_walk_baseline(
 
 
 def save_results_table(
-    results: Dict,
-    rw_baseline: Dict,
-    cfg: Dict,
+    results: dict,
+    rw_baseline: dict,
+    cfg: dict,
     path: Path,
 ) -> pd.DataFrame:
     """Compile and save comparison table."""
     rows = []
 
     # Random walk
-    rows.append({
-        "model": "RandomWalk",
-        "K": "-",
-        "method": "-",
-        "log": "-",
-        "mean_l2_full": rw_baseline["mean_l2"],
-        "std_l2_full": float(np.std(rw_baseline["l2_errors"])),
-        "mean_l2_factor": float("nan"),
-        "rel_to_rw": 1.0,
-    })
+    rows.append(
+        {
+            "model": "RandomWalk",
+            "K": "-",
+            "method": "-",
+            "log": "-",
+            "mean_l2_full": rw_baseline["mean_l2"],
+            "std_l2_full": float(np.std(rw_baseline["l2_errors"])),
+            "mean_l2_factor": float("nan"),
+            "rel_to_rw": 1.0,
+        }
+    )
 
     for name, res in results.items():
         parts = name.split("_", 1)
@@ -233,16 +239,18 @@ def save_results_table(
         std_l2 = float(np.std(res["l2_errors"]))
         mean_l2_f = float(np.mean(res["l2_factor_errors"]))
 
-        rows.append({
-            "model": name,
-            "K": K,
-            "method": "AdaLASSO" if use_ada else "LASSO",
-            "log": use_log,
-            "mean_l2_full": mean_l2,
-            "std_l2_full": std_l2,
-            "mean_l2_factor": mean_l2_f,
-            "rel_to_rw": mean_l2 / rw_baseline["mean_l2"],
-        })
+        rows.append(
+            {
+                "model": name,
+                "K": K,
+                "method": "AdaLASSO" if use_ada else "LASSO",
+                "log": use_log,
+                "mean_l2_full": mean_l2,
+                "std_l2_full": std_l2,
+                "mean_l2_factor": mean_l2_f,
+                "rel_to_rw": mean_l2 / rw_baseline["mean_l2"],
+            }
+        )
 
     df = pd.DataFrame(rows).set_index("model")
     df.to_csv(path / "exp1_l2_errors.csv")
@@ -250,25 +258,30 @@ def save_results_table(
     return df
 
 
-def plot_l2_errors(results: Dict, rw_baseline: Dict, path: Path) -> None:
+def plot_l2_errors(results: dict, rw_baseline: dict, path: Path) -> None:
     """Plot mean L2 errors across model specifications."""
     sns.set_theme(style="whitegrid")
 
     model_names = ["RandomWalk"] + list(results.keys())
     means = [rw_baseline["mean_l2"]] + [float(np.mean(r["l2_errors"])) for r in results.values()]
-    stds = [float(np.std(rw_baseline["l2_errors"]))] + [float(np.std(r["l2_errors"])) for r in results.values()]
+    stds = [float(np.std(rw_baseline["l2_errors"]))] + [
+        float(np.std(r["l2_errors"])) for r in results.values()
+    ]
 
     fig, ax = plt.subplots(figsize=(max(10, len(model_names) * 0.7), 5))
     x = np.arange(len(model_names))
-    colors = ["steelblue" if n == "RandomWalk" else
-              "tomato" if "Log" in n else "seagreen"
-              for n in model_names]
+    colors = [
+        "steelblue" if n == "RandomWalk" else "tomato" if "Log" in n else "seagreen"
+        for n in model_names
+    ]
     ax.bar(x, means, yerr=stds, capsize=4, color=colors, alpha=0.8)
     ax.set_xticks(x)
     ax.set_xticklabels(model_names, rotation=45, ha="right", fontsize=8)
     ax.set_ylabel("Mean L2 Forecast Error")
     ax.set_title("Exp 1: Mean L2 Covariance Forecast Errors by Model")
-    ax.axhline(rw_baseline["mean_l2"], color="navy", linestyle="--", alpha=0.6, label="Random Walk")
+    ax.axhline(
+        rw_baseline["mean_l2"], color="navy", linestyle="--", alpha=0.6, label="Random Walk"
+    )
     ax.legend()
     plt.tight_layout()
     fig.savefig(path / "exp1_l2_comparison.png", dpi=120)
@@ -276,7 +289,7 @@ def plot_l2_errors(results: Dict, rw_baseline: Dict, path: Path) -> None:
     logger.info("Saved L2 comparison plot.")
 
 
-def plot_l2_timeseries(results: Dict, rw_baseline: Dict, path: Path, n_show: int = 4) -> None:
+def plot_l2_timeseries(results: dict, rw_baseline: dict, path: Path, n_show: int = 4) -> None:
     """Plot L2 error time series for a subset of models."""
     selected = list(results.keys())[:n_show]
     fig, ax = plt.subplots(figsize=(12, 5))
@@ -293,7 +306,7 @@ def plot_l2_timeseries(results: Dict, rw_baseline: Dict, path: Path, n_show: int
     logger.info("Saved L2 timeseries plot.")
 
 
-def plot_factor_cov_l2(results: Dict, path: Path) -> None:
+def plot_factor_cov_l2(results: dict, path: Path) -> None:
     """Bar chart of factor covariance L2 errors by model."""
     model_names = list(results.keys())
     means = [float(np.mean(r["l2_factor_errors"])) for r in results.values()]
@@ -312,8 +325,8 @@ def plot_factor_cov_l2(results: Dict, path: Path) -> None:
 
 
 def plot_decomposition_check(
-    Sigma_list: List[np.ndarray],
-    data: Dict,
+    Sigma_list: list[np.ndarray],
+    data: dict,
     path: Path,
 ) -> None:
     """Visualize decomposition accuracy for K=3."""
@@ -325,10 +338,11 @@ def plot_decomposition_check(
 
     fig, axes = plt.subplots(1, 3, figsize=(14, 4))
     vmax = np.percentile(np.abs(Sigma_list[sample_t]), 95)
-    for ax, M, title in zip(axes,
-                             [Sigma_list[sample_t], reconstructed,
-                              np.abs(Sigma_list[sample_t] - reconstructed)],
-                             ["Σ_t (realized)", "B'Σ_f B + Σ_e (recon)", "|Error|"]):
+    for ax, M, title in zip(
+        axes,
+        [Sigma_list[sample_t], reconstructed, np.abs(Sigma_list[sample_t] - reconstructed)],
+        ["Σ_t (realized)", "B'Σ_f B + Σ_e (recon)", "|Error|"],
+    ):
         im = ax.imshow(M, cmap="coolwarm", vmin=-vmax, vmax=vmax)
         ax.set_title(title, fontsize=10)
         plt.colorbar(im, ax=ax, fraction=0.046)

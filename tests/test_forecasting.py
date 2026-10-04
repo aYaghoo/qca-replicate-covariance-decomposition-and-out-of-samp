@@ -1,20 +1,20 @@
 """Tests for src/lasso_har.py and src/forecasting.py."""
 
-import numpy as np
-import pytest
 import sys
 from pathlib import Path
 
+import numpy as np
+import pytest
+
 sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
-from src.lasso_har import bic_score, lasso_bic, adaptive_lasso_bic, har_design_matrix, fit_har_lasso_equation
 from src.forecasting import (
     build_factor_cov_har_matrix,
-    forecast_factor_covariance,
     forecast_betas,
+    forecast_factor_covariance,
     forecast_residual_blocks,
     rolling_forecast_pipeline,
 )
-from src.utils import vech, vech_to_matrix
+from src.lasso_har import bic_score, fit_har_lasso_equation, har_design_matrix, lasso_bic
 
 
 def make_psd(n: int, seed: int = 0) -> np.ndarray:
@@ -67,6 +67,7 @@ def build_B_Se_arrays(T: int, N: int, K: int, seed: int = 0):
 
 # bic_score tests
 
+
 def test_bic_perfect_fit_is_low():
     T = 50
     y = np.random.default_rng(0).standard_normal(T)
@@ -80,6 +81,7 @@ def test_bic_penalizes_complexity():
 
 
 # lasso_bic tests
+
 
 def test_lasso_bic_output_shapes():
     T, p = 40, 5
@@ -113,6 +115,7 @@ def test_lasso_bic_noiseless_signal():
 
 # har_design_matrix tests
 
+
 def test_har_design_matrix_returns_row():
     T, K = 60, 3
     M = K * (K + 1) // 2
@@ -133,10 +136,11 @@ def test_har_design_matrix_day_lag():
     series_2d = np.random.default_rng(2).standard_normal((T, M))
     t = 30
     row = har_design_matrix(series_2d, t=t, window=22)
-    np.testing.assert_allclose(row[1: 1 + M], series_2d[t - 1, :], atol=1e-14)
+    np.testing.assert_allclose(row[1 : 1 + M], series_2d[t - 1, :], atol=1e-14)
 
 
 # fit_har_lasso_equation tests
+
 
 def test_fit_har_lasso_returns_coefficient_vector():
     T, p = 50, 6
@@ -168,6 +172,7 @@ def test_fit_har_lasso_prediction_finite():
 
 # build_factor_cov_har_matrix tests
 
+
 def test_build_factor_cov_har_matrix_row_shape():
     T, K = 60, 3
     M = K * (K + 1) // 2
@@ -192,39 +197,61 @@ def test_build_factor_cov_har_matrix_intercept():
 
 # forecast_factor_covariance tests
 
+
 def test_forecast_factor_cov_output_shape():
     T, K = 50, 3
     Sf_hat = forecast_factor_covariance(
-        make_sigma_arr(T, K), train_start=0, train_end=45,
-        use_log=False, use_adaptive=False, n_alphas=3)
+        make_sigma_arr(T, K),
+        train_start=0,
+        train_end=45,
+        use_log=False,
+        use_adaptive=False,
+        n_alphas=3,
+    )
     assert Sf_hat.shape == (K, K)
 
 
 def test_forecast_factor_cov_is_symmetric():
     T, K = 50, 3
     Sf_hat = forecast_factor_covariance(
-        make_sigma_arr(T, K), train_start=0, train_end=45,
-        use_log=False, use_adaptive=False, n_alphas=3)
+        make_sigma_arr(T, K),
+        train_start=0,
+        train_end=45,
+        use_log=False,
+        use_adaptive=False,
+        n_alphas=3,
+    )
     np.testing.assert_allclose(Sf_hat, Sf_hat.T, atol=1e-10)
 
 
 def test_forecast_factor_cov_log_symmetric():
     T, K = 50, 2
     Sf_hat = forecast_factor_covariance(
-        make_sigma_arr(T, K), train_start=0, train_end=45,
-        use_log=True, use_adaptive=False, n_alphas=3)
+        make_sigma_arr(T, K),
+        train_start=0,
+        train_end=45,
+        use_log=True,
+        use_adaptive=False,
+        n_alphas=3,
+    )
     np.testing.assert_allclose(Sf_hat, Sf_hat.T, atol=1e-10)
 
 
 def test_forecast_factor_cov_is_psd():
     T, K = 50, 3
     Sf_hat = forecast_factor_covariance(
-        make_sigma_arr(T, K), train_start=0, train_end=45,
-        use_log=False, use_adaptive=False, n_alphas=3)
+        make_sigma_arr(T, K),
+        train_start=0,
+        train_end=45,
+        use_log=False,
+        use_adaptive=False,
+        n_alphas=3,
+    )
     assert np.all(np.linalg.eigvalsh(Sf_hat) >= -1e-7)
 
 
 # forecast_betas tests
+
 
 def test_forecast_betas_shape():
     T, K, N = 60, 3, 10
@@ -239,6 +266,7 @@ def test_forecast_betas_finite():
 
 
 # forecast_residual_blocks tests
+
 
 def test_forecast_residual_blocks_shape():
     N, K, S, T = 20, 3, 4, 50
@@ -269,14 +297,23 @@ def test_forecast_residual_blocks_symmetric():
 
 # rolling_forecast_pipeline integration tests
 
+
 def test_rolling_forecast_pipeline_oos_count():
     N, K, T, win = 10, 3, 120, 60
     W = make_W(K, N)
     sector_indices = make_sector_indices(N, 3)
     Sigma_list = make_sigma_list(T, N)
     res = rolling_forecast_pipeline(
-        Sigma_list=Sigma_list, W_t=W, sector_indices=sector_indices,
-        K=K, rolling_window=win, n_alphas=3, use_log=False, use_adaptive=False, verbose=False)
+        Sigma_list=Sigma_list,
+        W_t=W,
+        sector_indices=sector_indices,
+        K=K,
+        rolling_window=win,
+        n_alphas=3,
+        use_log=False,
+        use_adaptive=False,
+        verbose=False,
+    )
     assert len(res["l2_errors"]) == T - (win + 22)
     assert len(res["Sigma_hat_list"]) == T - (win + 22)
 
@@ -286,8 +323,16 @@ def test_rolling_forecast_pipeline_l2_non_negative():
     W = make_W(K, N)
     Sigma_list = make_sigma_list(T, N)
     res = rolling_forecast_pipeline(
-        Sigma_list=Sigma_list, W_t=W, sector_indices=make_sector_indices(N, 3),
-        K=K, rolling_window=win, n_alphas=3, use_log=False, use_adaptive=False, verbose=False)
+        Sigma_list=Sigma_list,
+        W_t=W,
+        sector_indices=make_sector_indices(N, 3),
+        K=K,
+        rolling_window=win,
+        n_alphas=3,
+        use_log=False,
+        use_adaptive=False,
+        verbose=False,
+    )
     assert all(e >= 0 for e in res["l2_errors"])
 
 
@@ -296,8 +341,16 @@ def test_rolling_forecast_pipeline_sigma_shape():
     W = make_W(K, N)
     Sigma_list = make_sigma_list(T, N)
     res = rolling_forecast_pipeline(
-        Sigma_list=Sigma_list, W_t=W, sector_indices=make_sector_indices(N, 3),
-        K=K, rolling_window=win, n_alphas=3, use_log=False, use_adaptive=False, verbose=False)
+        Sigma_list=Sigma_list,
+        W_t=W,
+        sector_indices=make_sector_indices(N, 3),
+        K=K,
+        rolling_window=win,
+        n_alphas=3,
+        use_log=False,
+        use_adaptive=False,
+        verbose=False,
+    )
     assert all(Sh.shape == (N, N) for Sh in res["Sigma_hat_list"])
 
 
@@ -305,8 +358,16 @@ def test_rolling_forecast_log_vs_nolog_same_length():
     N, K, T, win = 10, 2, 90, 45
     W = make_W(K, N)
     Sigma_list = make_sigma_list(T, N)
-    kwargs = dict(Sigma_list=Sigma_list, W_t=W, sector_indices=make_sector_indices(N, 3),
-                  K=K, rolling_window=win, n_alphas=3, use_adaptive=False, verbose=False)
+    kwargs = dict(
+        Sigma_list=Sigma_list,
+        W_t=W,
+        sector_indices=make_sector_indices(N, 3),
+        K=K,
+        rolling_window=win,
+        n_alphas=3,
+        use_adaptive=False,
+        verbose=False,
+    )
     r1 = rolling_forecast_pipeline(**kwargs, use_log=False)
     r2 = rolling_forecast_pipeline(**kwargs, use_log=True)
     assert len(r1["l2_errors"]) == len(r2["l2_errors"])

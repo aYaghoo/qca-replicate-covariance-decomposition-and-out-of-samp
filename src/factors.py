@@ -1,6 +1,5 @@
 import numpy as np
 import pandas as pd
-from typing import Dict, List, Tuple, Optional
 
 
 def compute_market_weights(market_caps: pd.Series) -> np.ndarray:
@@ -10,7 +9,7 @@ def compute_market_weights(market_caps: pd.Series) -> np.ndarray:
     ----------
     market_caps: Series of market caps for N stocks
 
-    Returns
+    Returns:
     -------
     w: (N,) array of value weights (sum to 1)
     """
@@ -23,8 +22,8 @@ def double_sort_smb_hml(
     bm_ratios: pd.Series,
     returns: pd.DataFrame,
     size_breakpoint: float = 0.5,
-    bm_breakpoints: Tuple[float, float] = (0.30, 0.70),
-) -> Tuple[np.ndarray, np.ndarray]:
+    bm_breakpoints: tuple[float, float] = (0.30, 0.70),
+) -> tuple[np.ndarray, np.ndarray]:
     """Construct SMB and HML factor weight vectors from double sort.
 
     Creates 6 value-weighted portfolios from size x book-to-market double sort.
@@ -39,7 +38,7 @@ def double_sort_smb_hml(
     size_breakpoint: median split breakpoint for size
     bm_breakpoints: low/high breakpoints for BM sort
 
-    Returns
+    Returns:
     -------
     w_smb: (N,) weight vector for SMB factor
     w_hml: (N,) weight vector for HML factor
@@ -97,7 +96,7 @@ def decile_factor_weights(
     market_caps: (N,) array of market capitalizations
     long_low: if True, long bottom decile and short top decile
 
-    Returns
+    Returns:
     -------
     w: (N,) net weight vector
     """
@@ -119,8 +118,7 @@ def decile_factor_weights(
 
     if long_low:
         return w_low - w_high
-    else:
-        return w_high - w_low
+    return w_high - w_low
 
 
 def investment_factor_weights(
@@ -139,7 +137,7 @@ def investment_factor_weights(
     size_char, bm_char, inv_char: (N,) arrays of characteristics
     market_caps: (N,) array of market capitalizations
 
-    Returns
+    Returns:
     -------
     w: (N,) net weight vector
     """
@@ -179,8 +177,8 @@ def investment_factor_weights(
 def build_factor_weight_matrix(
     K: int,
     market_caps: pd.Series,
-    bm_ratios: Optional[pd.Series],
-    accounting: Optional[pd.DataFrame],
+    bm_ratios: pd.Series | None,
+    accounting: pd.DataFrame | None,
 ) -> np.ndarray:
     """Build K x N factor weight matrix W for a given factor specification.
 
@@ -197,7 +195,7 @@ def build_factor_weight_matrix(
     bm_ratios: Series(N) book-to-market ratios (required for K>=3)
     accounting: DataFrame(N, cols) with accounting data (required for K>=5)
 
-    Returns
+    Returns:
     -------
     W: (K, N) weight matrix where each row is a factor portfolio
     """
@@ -218,11 +216,15 @@ def build_factor_weight_matrix(
         if accounting is None:
             raise ValueError("accounting data required for K>=5")
         # Gross profitability: GP = gross_profit / total_assets
-        gp = accounting['gross_profit'].values / np.maximum(accounting['AT'].values, 1e-6)
-        w_gp = decile_factor_weights(gp, caps, long_low=True)  # long low GP, short high GP per paper definition
+        gp = accounting["gross_profit"].values / np.maximum(accounting["AT"].values, 1e-6)
+        w_gp = decile_factor_weights(
+            gp, caps, long_low=True
+        )  # long low GP, short high GP per paper definition
 
         # Investment factor: triple sort on size x BM x investment
-        inv = (accounting['delta_PPEGT'].values + accounting['delta_INVT'].values) / np.maximum(accounting['AT_lag'].values, 1e-6)
+        inv = (accounting["delta_PPEGT"].values + accounting["delta_INVT"].values) / np.maximum(
+            accounting["AT_lag"].values, 1e-6
+        )
         w_inv = investment_factor_weights(caps, bm_ratios.values, inv, caps)
         rows.extend([w_gp, w_inv])
 
@@ -230,11 +232,11 @@ def build_factor_weight_matrix(
         if accounting is None:
             raise ValueError("accounting data required for K>=7")
         # Asset growth: AT/AT_lag
-        ag = accounting['AT'].values / np.maximum(accounting['AT_lag'].values, 1e-6)
+        ag = accounting["AT"].values / np.maximum(accounting["AT_lag"].values, 1e-6)
         w_ag = decile_factor_weights(ag, caps, long_low=True)  # factor = R_lowAG - R_highAG
 
         # Accruals
-        acc = accounting['accruals'].values
+        acc = accounting["accruals"].values
         w_acc = decile_factor_weights(acc, caps, long_low=True)  # factor = R_lowAcc - R_highAcc
         rows.extend([w_ag, w_acc])
 

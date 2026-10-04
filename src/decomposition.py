@@ -1,13 +1,11 @@
 import numpy as np
-from typing import List, Dict, Tuple
-from .utils import nearest_psd
 
 
 def decompose_covariance(
     Sigma_t: np.ndarray,
     W_t: np.ndarray,
     reg_eps: float = 1e-6,
-) -> Tuple[np.ndarray, np.ndarray, np.ndarray]:
+) -> tuple[np.ndarray, np.ndarray, np.ndarray]:
     """Decompose realized covariance matrix using factor model.
 
     Given:
@@ -25,7 +23,7 @@ def decompose_covariance(
     W_t: (K, N) factor weight matrix
     reg_eps: regularization for Sigma_f inversion
 
-    Returns
+    Returns:
     -------
     Sigma_f_t: (K, K) factor covariance
     B_t: (K, N) factor loadings
@@ -66,8 +64,8 @@ def verify_decomposition(
 
 def extract_sector_blocks(
     Sigma_e_t: np.ndarray,
-    sector_indices: List[np.ndarray],
-) -> List[np.ndarray]:
+    sector_indices: list[np.ndarray],
+) -> list[np.ndarray]:
     """Extract sector-diagonal blocks from residual covariance matrix.
 
     Parameters
@@ -75,7 +73,7 @@ def extract_sector_blocks(
     Sigma_e_t: (N, N) residual covariance matrix
     sector_indices: list of index arrays, one per sector
 
-    Returns
+    Returns:
     -------
     blocks: list of (N_s, N_s) block matrices
     """
@@ -88,8 +86,8 @@ def extract_sector_blocks(
 
 
 def assemble_from_sector_blocks(
-    blocks: List[np.ndarray],
-    sector_indices: List[np.ndarray],
+    blocks: list[np.ndarray],
+    sector_indices: list[np.ndarray],
     N: int,
 ) -> np.ndarray:
     """Assemble full N x N block-diagonal matrix from sector blocks.
@@ -102,7 +100,7 @@ def assemble_from_sector_blocks(
     sector_indices: list of index arrays, one per sector
     N: total number of assets
 
-    Returns
+    Returns:
     -------
     Sigma_e: (N, N) block-diagonal matrix
     """

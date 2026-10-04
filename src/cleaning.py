@@ -1,13 +1,12 @@
 import numpy as np
-from typing import List, Tuple
 
 
 def clean_covariance_matrices(
-    Sigma_list: List[np.ndarray],
+    Sigma_list: list[np.ndarray],
     sigma_threshold: float = 4.0,
     flag_fraction: float = 0.25,
     replacement_window: int = 10,
-) -> Tuple[List[np.ndarray], List[bool]]:
+) -> tuple[list[np.ndarray], list[bool]]:
     """Clean realized covariance matrices by flagging extreme entries.
 
     For each day t:
@@ -23,7 +22,7 @@ def clean_covariance_matrices(
     flag_fraction: flag matrix if more than this fraction of unique entries are extreme
     replacement_window: number of preceding non-flagged matrices to average for replacement
 
-    Returns
+    Returns:
     -------
     cleaned_list: list of cleaned covariance matrices
     is_flagged: boolean list indicating which days were flagged
@@ -55,9 +54,7 @@ def clean_covariance_matrices(
 
         # Flag entries beyond threshold (use std > 0 to avoid division by zero)
         valid_std = hist_std > 1e-10
-        n_flagged = np.sum(
-            valid_std & (np.abs(curr - hist_mean) > sigma_threshold * hist_std)
-        )
+        n_flagged = np.sum(valid_std & (np.abs(curr - hist_mean) > sigma_threshold * hist_std))
         frac_flagged = n_flagged / M
 
         if frac_flagged > flag_fraction:
