@@ -7,30 +7,41 @@
     "n_alphas": 3,
     "seed": 42
   },
+  "units": "decimal returns; std_ann_pct and constraint_summary in annualized percent",
   "n_oos": 128,
   "best_restricted": {
-    "model": "RandomWalk",
-    "std_ann_pct": 64.42690278108316
+    "model": "K1_LASSO",
+    "std_ann_pct": 12.888632616518292
   },
   "best_long_only": {
-    "model": "RandomWalk",
-    "std_ann_pct": 64.42690126953796
+    "model": "K3_AdaLASSO",
+    "std_ann_pct": 14.001503070840704
+  },
+  "n_fallback_total": 0,
+  "n_forecast_fallback_by_model": {
+    "K1_LASSO": 0,
+    "K3_LASSO": 0,
+    "K3_AdaLASSO": 0,
+    "K3_Log_LASSO": 0,
+    "K5_LASSO": 0,
+    "K7_LASSO": 0,
+    "K7_AdaLASSO": 0
   },
   "constraint_summary": {
     "mean": {
-      "long_only": 67.67054110534875,
-      "restricted": 67.96196097322674,
-      "unconstrained": 67.96196838968608
+      "long_only": 14.115164137668664,
+      "restricted": 13.218576705530229,
+      "unconstrained": 13.316351143949383
     },
     "min": {
-      "long_only": 64.42690126953796,
-      "restricted": 64.42690278108316,
-      "unconstrained": 64.42690245847066
+      "long_only": 14.001503070840704,
+      "restricted": 12.888632616518292,
+      "unconstrained": 12.688945938110209
     },
     "max": {
-      "long_only": 68.49486414109047,
-      "restricted": 68.85351444975211,
-      "unconstrained": 68.85353012691488
+      "long_only": 14.487147365953232,
+      "restricted": 14.481967268937401,
+      "unconstrained": 14.958963593754707
     }
   }
 }
