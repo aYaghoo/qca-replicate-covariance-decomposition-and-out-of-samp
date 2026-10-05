@@ -63,7 +63,7 @@ repos:
   # --- Checks provided by the agent-harness repo ------------------------------
   # Point repo at the harness's git URL, or a local path while developing.
   - repo: https://github.com/aYaghoo/agent-harness
-    rev: v0.1.1
+    rev: v0.2.0
     hooks:
       - id: comment-length
 

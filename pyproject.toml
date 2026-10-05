@@ -142,6 +142,7 @@ disallow_untyped_defs = false
 style = "numpy"
 arg-type-hints-in-docstring = false # types live in annotations, not docstrings
 check-return-types = false
+check-yield-types = false # likewise for generators and context managers
 
 [tool.interrogate]
 fail-under = 74
