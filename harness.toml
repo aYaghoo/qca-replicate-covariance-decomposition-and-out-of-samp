@@ -10,7 +10,10 @@ import_roots = ["."]      # default: "src" if it exists, else "."
 
 # --- When checks run ---------------------------------------------------------
 [checks]
-fast = ["ruff", "file-length", "comment-length", "hygiene", "codespell"]  # after each write
+fast = [  # after each write
+  "ruff", "file-length", "comment-length", "hygiene", "codespell",
+  "suppressions", "protected-files", "dependencies",  # compare with the session's baseline
+]
 gate = ["mypy", "semgrep", "pydoclint", "interrogate", "vulture", "gitleaks", "pip-audit", "pytest"]
 
 # --- Severity ----------------------------------------------------------------
@@ -76,12 +79,15 @@ patterns = [
 
 [rules.protected-files]
 paths = [
-  "pyproject.toml:[tool.ruff*]",
-  "pyproject.toml:[tool.mypy*]",
-  ".semgrep/**",
+  "**/pyproject.toml:[tool.*]",
+  "**/ruff.toml", "**/.ruff.toml",  # Ruff also reads config from subdirectories
+  "mypy.ini", ".mypy.ini", "setup.cfg", ".codespellrc",
+  ".semgrep/**", ".semgrepignore", ".gitleaks.toml", ".gitleaksignore",
   ".pre-commit-config.yaml",
   "harness.toml",
   "requirements*.txt",
+  ".claude/**",   # Claude Code settings, including hooks
+  ".gitignore",   # ignored files are invisible to every check
 ]
 
 [rules.dependencies]
